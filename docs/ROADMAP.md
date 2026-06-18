@@ -56,6 +56,10 @@ partecipanti, giudici e criteri.
 
 ## Milestone 3 - API admin base
 
+**Status:** completata il 2026-06-18. API admin CRUD per eventi, competizioni,
+partecipanti, criteri pubblici, criteri giudici, giudici e associazioni
+giudici/competizioni verificate.
+
 **Obiettivo:** permettere la configurazione completa di un contest via API.
 
 **Include:**
