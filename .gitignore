@@ -1,7 +1,9 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
+pytest-cache-files-*/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -23,6 +25,7 @@ coverage/
 *.sqlite3
 *.db
 postgres-data/
+.tmp/
 
 # IDE
 .idea/

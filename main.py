@@ -1,16 +1,14 @@
-# This is a sample Python script.
+"""Compatibility launcher for local FastAPI development.
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+The production application lives in backend/app/main.py.
+"""
 
+from pathlib import Path
+import sys
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+backend_path = Path(__file__).resolve().parent / "backend"
+sys.path.insert(0, str(backend_path))
 
+from app.main import app
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+__all__ = ["app"]
