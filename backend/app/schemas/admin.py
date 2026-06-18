@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import (
@@ -5,6 +7,7 @@ from app.models import (
     CompetitionStatus,
     EventStatus,
     PublicVoteMethod,
+    VotingSessionStatus,
 )
 
 
@@ -179,3 +182,25 @@ class CompetitionJudgeRead(BaseModel):
     competition_id: str
     judge_id: str
     active: bool
+
+
+class VotingSessionCreate(BaseModel):
+    label: str | None = Field(default=None, max_length=255)
+    opened_by_admin_id: str | None = Field(default=None, max_length=36)
+
+
+class VotingSessionClose(BaseModel):
+    closed_by_admin_id: str | None = Field(default=None, max_length=36)
+
+
+class VotingSessionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    competition_id: str
+    label: str | None
+    status: VotingSessionStatus
+    opened_at: datetime | None
+    closed_at: datetime | None
+    opened_by_admin_id: str | None
+    closed_by_admin_id: str | None

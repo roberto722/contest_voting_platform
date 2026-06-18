@@ -78,6 +78,9 @@ giudici/competizioni verificate.
 
 ## Milestone 4 - Voting sessions
 
+**Status:** completata il 2026-06-18. API e service per apertura, chiusura,
+riapertura e storico `VotingSession` verificati da test backend.
+
 **Obiettivo:** gestire apertura, chiusura e riapertura delle votazioni.
 
 **Include:**
@@ -94,6 +97,10 @@ voti sono sempre associati alla sessione corretta.
 **Dipendenze:** Milestone 3.
 
 ## Milestone 5 - Voto pubblico
+
+**Status:** completata il 2026-06-18. API e service per voto pubblico
+`single_choice`, `ranked_choice`, `criteria_rating`, token anonimo hashato,
+duplicati e aggiornamento voto verificati da test backend mirati.
 
 **Obiettivo:** permettere al pubblico di votare secondo il metodo configurato.
 
@@ -113,6 +120,10 @@ rispetto della configurazione competizione.
 
 ## Milestone 6 - Voto giudici
 
+**Status:** completata il 2026-06-18. Accesso giudici, lista competizioni
+assegnate, voto criteri, update finche la votazione e aperta e stato
+completamento verificati da test backend mirati.
+
 **Obiettivo:** permettere ai giudici assegnati di votare sui criteri configurati.
 
 **Include:**
@@ -129,6 +140,10 @@ competizione sui criteri configurati.
 **Dipendenze:** Milestone 4.
 
 ## Milestone 7 - Scoring service
+
+**Status:** completata il 2026-06-18. Service ed endpoint risultati per scoring
+pubblico, scoring giudici, combinazione pesata, normalizzazione 0-100,
+ordinamento e dettaglio verificati da test backend mirati.
 
 **Obiettivo:** calcolare classifiche e dettagli punteggio.
 
