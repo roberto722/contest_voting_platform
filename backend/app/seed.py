@@ -38,7 +38,9 @@ def create_demo_data(session: Session) -> Event:
         performance.participants.append(
             Participant(name=name.lower(), display_name=name, order_index=index)
         )
-        costume.participants.append(Participant(name=name.lower(), display_name=name, order_index=index))
+        costume.participants.append(
+            Participant(name=name.lower(), display_name=name, order_index=index)
+        )
 
     for index, name in enumerate(["Giudice 1", "Giudice 2", "Giudice 3"], start=1):
         event.judges.append(
@@ -49,13 +51,17 @@ def create_demo_data(session: Session) -> Event:
             )
         )
 
-    for index, criterion_name in enumerate(["Intonazione", "Presenza scenica", "Originalita"], start=1):
+    performance_criteria = ["Intonazione", "Presenza scenica", "Originalita"]
+    for index, criterion_name in enumerate(performance_criteria, start=1):
         performance.judge_criteria.append(
             JudgeCriterion(name=criterion_name, weight=1, order_index=index)
         )
 
-    for index, criterion_name in enumerate(["Creativita", "Realizzazione", "Impatto scenico"], start=1):
-        costume.judge_criteria.append(JudgeCriterion(name=criterion_name, weight=1, order_index=index))
+    costume_criteria = ["Creativita", "Realizzazione", "Impatto scenico"]
+    for index, criterion_name in enumerate(costume_criteria, start=1):
+        costume.judge_criteria.append(
+            JudgeCriterion(name=criterion_name, weight=1, order_index=index)
+        )
 
     session.add(event)
     return event

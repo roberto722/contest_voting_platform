@@ -1,12 +1,11 @@
 from collections.abc import Generator
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
-
 from app.db import Base
 from app.models import Competition, Event, Judge, Participant
 from app.seed import create_demo_data
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, sessionmaker
 
 
 @pytest.fixture()

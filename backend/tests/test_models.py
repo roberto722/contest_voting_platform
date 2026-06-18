@@ -1,9 +1,6 @@
 from collections.abc import Generator
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
-
 from app.db import Base
 from app.models import (
     AccessMethod,
@@ -28,6 +25,8 @@ from app.models import (
     VotingSession,
     VotingSessionStatus,
 )
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, sessionmaker
 
 
 @pytest.fixture()
