@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Contest Voting Platform"
     database_url: str = Field(
-        default="postgresql+psycopg://contest:contest@localhost:5432/contest_voting",
+        default="postgresql+psycopg://contest:contest@localhost:5432/contest_voting?connect_timeout=3",
         validation_alias="DATABASE_URL",
     )
     backend_cors_origins: str = Field(
