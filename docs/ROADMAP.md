@@ -36,6 +36,9 @@ backend espone `/health`; frontend mostra una pagina iniziale.
 
 ## Milestone 2 - Database e modelli
 
+**Status:** completata il 2026-06-18. Modelli SQLAlchemy, migrazione Alembic,
+seed demo e test base passano.
+
 **Obiettivo:** modellare il dominio principale.
 
 **Include:**
