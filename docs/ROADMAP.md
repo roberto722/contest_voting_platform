@@ -14,6 +14,9 @@ criteri di completamento.
 
 ## Milestone 1 - Setup progetto
 
+**Status:** completata il 2026-06-18. Test backend, build frontend e smoke test
+Docker Compose passano.
+
 **Obiettivo:** creare una base full-stack avviabile localmente.
 
 **Include:**
@@ -262,4 +265,3 @@ esterne.
 errore chiari.
 
 **Dipendenze:** tutte le milestone funzionali precedenti.
-
