@@ -6,7 +6,7 @@ from sqlalchemy import Enum, Float, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
-from app.models.enums import PublicVoteMethod
+from app.models.enums import PublicVoteMethod, enum_values
 from app.models.mixins import IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ class PublicVote(IdMixin, TimestampMixin, Base):
         index=True,
     )
     vote_method: Mapped[PublicVoteMethod] = mapped_column(
-        Enum(PublicVoteMethod, native_enum=False),
+        Enum(PublicVoteMethod, native_enum=False, values_callable=enum_values),
         nullable=False,
     )
     value: Mapped[float | None] = mapped_column(Float)

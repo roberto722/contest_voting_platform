@@ -7,7 +7,7 @@ from sqlalchemy import DateTime, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
-from app.models.enums import EventStatus
+from app.models.enums import EventStatus, enum_values
 from app.models.mixins import IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ class Event(IdMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(String(2000))
     date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[EventStatus] = mapped_column(
-        Enum(EventStatus, native_enum=False),
+        Enum(EventStatus, native_enum=False, values_callable=enum_values),
         default=EventStatus.DRAFT,
         nullable=False,
     )

@@ -7,7 +7,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
-from app.models.enums import VotingSessionStatus
+from app.models.enums import VotingSessionStatus, enum_values
 from app.models.mixins import IdMixin, TimestampMixin, utc_now
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ class VotingSession(IdMixin, TimestampMixin, Base):
     )
     label: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[VotingSessionStatus] = mapped_column(
-        Enum(VotingSessionStatus, native_enum=False),
+        Enum(VotingSessionStatus, native_enum=False, values_callable=enum_values),
         default=VotingSessionStatus.OPEN,
         nullable=False,
     )

@@ -4,7 +4,7 @@ from sqlalchemy import Enum, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
-from app.models.enums import ScreenMode
+from app.models.enums import ScreenMode, enum_values
 from app.models.mixins import IdMixin, TimestampMixin
 
 
@@ -18,7 +18,7 @@ class ScreenState(IdMixin, TimestampMixin, Base):
         index=True,
     )
     mode: Mapped[ScreenMode] = mapped_column(
-        Enum(ScreenMode, native_enum=False),
+        Enum(ScreenMode, native_enum=False, values_callable=enum_values),
         default=ScreenMode.IDLE,
         nullable=False,
     )
