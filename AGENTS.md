@@ -44,6 +44,8 @@ La webapp deve permettere di:
 Lo spreadsheet non deve essere usato come database principale. Eventuali import/export
 CSV o Excel sono funzionalita future.
 
+uv viene usato per lo sviluppo
+
 ## Architettura attesa
 
 Mantieni separata la logica business dalle route API. Le route devono orchestrare input,
