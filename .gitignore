@@ -26,6 +26,7 @@ coverage/
 *.db
 postgres-data/
 .tmp/
+.superpowers/
 
 # IDE
 .idea/
