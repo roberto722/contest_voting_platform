@@ -14,7 +14,6 @@ from app.models import (
 class EventCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    status: EventStatus = EventStatus.DRAFT
 
 
 class EventUpdate(BaseModel):
@@ -45,7 +44,6 @@ class CompetitionCreate(BaseModel):
     access_pin: str | None = None
     max_votes_per_user: int = 1
     allow_vote_update: bool = False
-    status: CompetitionStatus = CompetitionStatus.DRAFT
 
 
 class CompetitionUpdate(BaseModel):
@@ -61,7 +59,6 @@ class CompetitionUpdate(BaseModel):
     access_pin: str | None = None
     max_votes_per_user: int | None = None
     allow_vote_update: bool | None = None
-    status: CompetitionStatus | None = None
 
 
 class CompetitionRead(BaseModel):
@@ -81,6 +78,25 @@ class CompetitionRead(BaseModel):
     max_votes_per_user: int
     allow_vote_update: bool
     status: CompetitionStatus
+
+
+class SetupStepStatus(BaseModel):
+    step: str
+    completed: bool
+    message: str
+
+
+class CompetitionSetupStatus(BaseModel):
+    competition_id: str
+    event_id: str
+    is_ready: bool
+    can_open_voting: bool
+    completed_steps: list[str]
+    missing_steps: list[str]
+    issues: list[str]
+    open_issues: list[str]
+    messages: list[str]
+    checks: list[SetupStepStatus]
 
 
 class ParticipantCreate(BaseModel):
@@ -173,6 +189,12 @@ class JudgeRead(BaseModel):
     name: str
     display_name: str
     active: bool
+    assigned_competition_ids: list[str] = Field(default_factory=list)
+
+
+class JudgeAccessCodeResetRead(BaseModel):
+    judge: JudgeRead
+    access_code: str
 
 
 class CompetitionJudgeRead(BaseModel):

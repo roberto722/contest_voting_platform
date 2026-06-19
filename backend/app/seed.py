@@ -63,5 +63,11 @@ def create_demo_data(session: Session) -> Event:
             JudgeCriterion(name=criterion_name, weight=1, order_index=index)
         )
 
+    # Associa i giudici alle competizioni
+    from app.models import CompetitionJudge
+    for judge in event.judges:
+        session.add(CompetitionJudge(competition=performance, judge=judge))
+        session.add(CompetitionJudge(competition=costume, judge=judge))
+
     session.add(event)
     return event

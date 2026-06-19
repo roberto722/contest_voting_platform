@@ -164,6 +164,10 @@ dettagliata per i metodi supportati.
 
 ## Milestone 8 - Freeze risultati
 
+**Status:** completata il 2026-06-18. Freeze finale con `ResultSnapshot`,
+blocco doppio freeze e lettura risultati finali da snapshot verificati da test
+backend mirati.
+
 **Obiettivo:** rendere immutabile il risultato finale.
 
 **Include:**
@@ -178,6 +182,11 @@ vengono modificati voti o dati collegati.
 **Dipendenze:** Milestone 7.
 
 ## Milestone 9 - Frontend admin
+
+**Status:** completata il 2026-06-18. Console admin per dashboard eventi,
+configurazione competizioni, partecipanti, criteri, giudici, apertura/chiusura
+votazioni, risultati, freeze e controllo base `ScreenState` verificata con build
+frontend e test backend mirati. Realtime e vista schermo restano in Milestone 12.
 
 **Obiettivo:** gestire una serata senza chiamare manualmente le API.
 
@@ -198,6 +207,11 @@ vengono modificati voti o dati collegati.
 
 ## Milestone 10 - Frontend pubblico
 
+**Status:** completata il 2026-06-18. Area pubblico nel frontend con accesso
+competizione, stato votazione chiusa, voto `single_choice`, `ranked_choice`,
+`criteria_rating`, token anonimo lato browser e conferma voto verificata con
+build frontend e test backend pubblici mirati.
+
 **Obiettivo:** permettere voto pubblico semplice da smartphone.
 
 **Include:**
@@ -212,6 +226,10 @@ vengono modificati voti o dati collegati.
 **Dipendenze:** Milestone 5.
 
 ## Milestone 11 - Frontend giudici
+
+**Status:** completata il 2026-06-18. Area giudici nel frontend con accesso,
+competizioni assegnate, voto criteri per partecipante, aggiornamento voto e stato
+completamento verificata con build frontend e test backend giudici mirati.
 
 **Obiettivo:** fornire interfaccia voto dedicata ai giudici.
 
@@ -229,6 +247,11 @@ browser.
 **Dipendenze:** Milestone 6.
 
 ## Milestone 12 - Schermo pubblico e realtime
+
+**Status:** completata il 2026-06-18. Vista schermo pubblico nel frontend,
+controllo admin `ScreenState`, WebSocket per aggiornamenti realtime, QR code reale,
+conteggio voti, stato votazione, countdown configurabile, classifica, reveal e podio
+verificati con build frontend e test backend mirati su screen/sessioni/voti pubblici.
 
 **Obiettivo:** controllare una vista proiettore aggiornata in tempo reale.
 
@@ -250,6 +273,11 @@ refresh.
 
 ## Milestone 13 - Rifinitura UI
 
+**Status:** completata il 2026-06-18. Rifiniti responsive mobile, feedback errori,
+link pubblico precompilabile via URL/QR, caricamento diretto area giudici, prevenzione
+duplicati nel ranked choice lato UI, leggibilita schermo pubblico e animazioni leggere
+per classifica/podio. Verificata con build frontend.
+
 **Obiettivo:** rendere l'app usabile e presentabile in evento reale.
 
 **Include:**
@@ -268,6 +296,13 @@ esterne.
 **Dipendenze:** Milestone 9, 10, 11 e 12.
 
 ## Milestone 14 - Test e robustezza
+
+**Status:** completata il 2026-06-18. Aggiunta validazione accesso pubblico con PIN
+per competizioni `qr_pin`, integrazione nel frontend pubblico e copertura mirata.
+Verificata tutta la suite backend e la build frontend.
+
+Nota operativa: aggiunto anche il log attività consultabile dall'admin per azioni
+admin, pubblico e giudici.
 
 **Obiettivo:** consolidare comportamento e regressioni.
 

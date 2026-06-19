@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.schemas.admin import CompetitionCreate, CompetitionRead, CompetitionUpdate
+from app.schemas.admin import (
+    CompetitionCreate,
+    CompetitionRead,
+    CompetitionSetupStatus,
+    CompetitionUpdate,
+)
 from app.services import admin_service
 
 router = APIRouter(tags=["competitions"])
@@ -37,6 +42,17 @@ def get_competition(
     db: Annotated[Session, Depends(get_db)],
 ) -> CompetitionRead:
     return admin_service.get_competition(db, competition_id)
+
+
+@router.get(
+    "/api/competitions/{competition_id}/setup-status",
+    response_model=CompetitionSetupStatus,
+)
+def get_competition_setup_status(
+    competition_id: str,
+    db: Annotated[Session, Depends(get_db)],
+) -> CompetitionSetupStatus:
+    return admin_service.get_competition_setup_status(db, competition_id)
 
 
 @router.patch("/api/competitions/{competition_id}", response_model=CompetitionRead)

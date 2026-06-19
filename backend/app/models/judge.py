@@ -30,6 +30,14 @@ class Judge(IdMixin, TimestampMixin, Base):
     )
     votes: Mapped[list[JudgeVote]] = relationship(back_populates="judge")
 
+    @property
+    def assigned_competition_ids(self) -> list[str]:
+        return [
+            assignment.competition_id
+            for assignment in self.competitions
+            if assignment.active
+        ]
+
 
 class CompetitionJudge(IdMixin, Base):
     __tablename__ = "competition_judges"

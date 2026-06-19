@@ -3,7 +3,19 @@ from collections.abc import Generator
 import pytest
 from app.db import Base, get_db
 from app.main import app
-from app.models import Competition, Judge
+from app.models import (
+    AuditLog,
+    Competition,
+    Judge,
+    JudgeCriterion,
+    Participant,
+    PublicVote,
+    PublicVoteCriterion,
+    ResultSnapshot,
+    ScreenState,
+    VoterSession,
+    VotingSession,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -90,12 +102,21 @@ def test_admin_can_configure_complete_competition(client: TestClient, db_session
     assignment_response = client.post(f"/api/competitions/{competition_id}/judges/{judge_id}")
     assert assignment_response.status_code == 201
 
+    logs_response = client.get(f"/api/events/{event_id}/audit-logs")
+    assert logs_response.status_code == 200
+    actions = [item["action"] for item in logs_response.json()]
+    assert "admin_event_created" in actions
+    assert "admin_competition_created" in actions
+    assert "admin_judge_created" in actions
+    assert "admin_judge_assigned" in actions
+
     participants_response = client.get(f"/api/competitions/{competition_id}/participants")
     judges_response = client.get(f"/api/events/{event_id}/judges")
     competitions_response = client.get(f"/api/events/{event_id}/competitions")
 
     assert len(participants_response.json()) == 2
     assert len(judges_response.json()) == 1
+    assert judges_response.json()[0]["assigned_competition_ids"] == [competition_id]
     assert len(competitions_response.json()) == 1
 
     saved_competition = db_session.scalar(
@@ -107,6 +128,270 @@ def test_admin_can_configure_complete_competition(client: TestClient, db_session
     assert saved_competition.access_pin_hash != "1234"
     assert saved_judge is not None
     assert saved_judge.access_code_hash != "secret"
+
+
+def test_admin_can_regenerate_judge_access_code(client: TestClient, db_session: Session) -> None:
+    event_response = client.post("/api/events", json={"name": "Serata Live"})
+    event_id = event_response.json()["id"]
+    judge_response = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge-1", "display_name": "Giudice 1", "access_code": "old-secret"},
+    )
+    judge_id = judge_response.json()["id"]
+
+    old_access = client.post(
+        "/api/judge-access",
+        json={"judge_id": judge_id, "access_code": "old-secret"},
+    )
+    assert old_access.status_code == 200
+
+    reset_response = client.post(f"/api/judges/{judge_id}/access-code/regenerate")
+    assert reset_response.status_code == 200
+    reset_payload = reset_response.json()
+    new_access_code = reset_payload["access_code"]
+    assert new_access_code
+    assert new_access_code != "old-secret"
+    assert reset_payload["judge"]["id"] == judge_id
+    assert "access_code_hash" not in reset_payload["judge"]
+
+    old_access_after_reset = client.post(
+        "/api/judge-access",
+        json={"judge_id": judge_id, "access_code": "old-secret"},
+    )
+    assert old_access_after_reset.status_code == 403
+
+    new_access = client.post(
+        "/api/judge-access",
+        json={"judge_id": judge_id, "access_code": new_access_code},
+    )
+    assert new_access.status_code == 200
+
+    judges_response = client.get(f"/api/events/{event_id}/judges")
+    assert judges_response.status_code == 200
+    assert "access_code" not in judges_response.json()[0]
+    assert "access_code_hash" not in judges_response.json()[0]
+
+    saved_judge = db_session.scalar(select(Judge).where(Judge.id == judge_id))
+    assert saved_judge is not None
+    assert saved_judge.access_code_hash != "old-secret"
+    assert saved_judge.access_code_hash != new_access_code
+
+    logs_response = client.get(f"/api/events/{event_id}/audit-logs")
+    actions = [item["action"] for item in logs_response.json()]
+    assert "admin_judge_access_code_regenerated" in actions
+
+
+def test_admin_can_assign_judge_to_multiple_competitions(client: TestClient) -> None:
+    event_response = client.post("/api/events", json={"name": "Serata Live"})
+    event_id = event_response.json()["id"]
+    first_competition_response = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={"name": "Prima competizione", "public_vote_method": "single_choice"},
+    )
+    second_competition_response = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={"name": "Seconda competizione", "public_vote_method": "single_choice"},
+    )
+    first_competition_id = first_competition_response.json()["id"]
+    second_competition_id = second_competition_response.json()["id"]
+    judge_response = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge-1", "display_name": "Giudice 1", "access_code": "secret"},
+    )
+    judge_id = judge_response.json()["id"]
+
+    first_assignment = client.post(f"/api/competitions/{first_competition_id}/judges/{judge_id}")
+    second_assignment = client.post(f"/api/competitions/{second_competition_id}/judges/{judge_id}")
+
+    assert first_assignment.status_code == 201
+    assert second_assignment.status_code == 201
+
+    judges_response = client.get(f"/api/events/{event_id}/judges")
+    assigned_competition_ids = judges_response.json()[0]["assigned_competition_ids"]
+    assert set(assigned_competition_ids) == {first_competition_id, second_competition_id}
+
+    judge_access_response = client.post(
+        "/api/judge-access",
+        json={"judge_id": judge_id, "access_code": "secret"},
+    )
+    accessible_competition_ids = {
+        competition["id"] for competition in judge_access_response.json()["competitions"]
+    }
+    assert accessible_competition_ids == {first_competition_id, second_competition_id}
+
+
+def test_live_event_locks_configuration_changes(client: TestClient) -> None:
+    event_id = client.post("/api/events", json={"name": "Serata Live"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={"name": "Contest", "judge_voting_enabled": False},
+    ).json()["id"]
+    for index, name in enumerate(["Anna", "Marco"], start=1):
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": name.lower(), "display_name": name, "order_index": index},
+        )
+
+    live = client.patch(f"/api/events/{event_id}", json={"status": "live"})
+    participant = client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "luca", "display_name": "Luca"},
+    )
+    criterion = client.post(
+        f"/api/competitions/{competition_id}/public-criteria",
+        json={"name": "Impatto"},
+    )
+    judge = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge-1", "display_name": "Giudice 1", "access_code": "secret"},
+    )
+
+    assert live.status_code == 200
+    assert participant.status_code == 409
+    assert criterion.status_code == 409
+    assert judge.status_code == 409
+
+
+def test_delete_event_removes_all_associated_data(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    event_id = client.post("/api/events", json={"name": "Evento da eliminare"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Contest",
+            "judge_voting_enabled": False,
+            "public_weight": 100,
+            "judge_weight": 0,
+        },
+    ).json()["id"]
+    participant_ids = [
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": name.lower(), "display_name": name, "order_index": index},
+        ).json()["id"]
+        for index, name in enumerate(["Anna", "Marco"], start=1)
+    ]
+    judge_id = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge-1", "display_name": "Giudice 1", "access_code": "secret"},
+    ).json()["id"]
+    criterion_id = client.post(
+        f"/api/competitions/{competition_id}/judge-criteria",
+        json={"name": "Tecnica"},
+    ).json()["id"]
+
+    assert client.patch(f"/api/events/{event_id}", json={"status": "live"}).status_code == 200
+    assert (
+        client.post(
+            f"/api/competitions/{competition_id}/voting-sessions",
+            json={"label": "Round 1"},
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            f"/api/competitions/{competition_id}/public-votes",
+            json={
+                "voter_token": "anon-1",
+                "method": "single_choice",
+                "participant_id": participant_ids[0],
+            },
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            f"/api/competitions/{competition_id}/results/freeze",
+            json={"snapshot_name": "Finale"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.put(
+            f"/api/events/{event_id}/screen-state",
+            json={
+                "competition_id": competition_id,
+                "mode": "show_results",
+                "payload_json": {"title": "Classifica"},
+            },
+        ).status_code
+        == 200
+    )
+
+    deleted = client.delete(f"/api/events/{event_id}")
+
+    assert deleted.status_code == 204
+    assert client.get(f"/api/events/{event_id}").status_code == 404
+    assert db_session.scalar(select(Competition).where(Competition.id == competition_id)) is None
+    assert db_session.scalar(select(Judge).where(Judge.id == judge_id)) is None
+    assert (
+        db_session.scalar(select(JudgeCriterion).where(JudgeCriterion.id == criterion_id))
+        is None
+    )
+    assert db_session.scalars(select(Participant)).all() == []
+    assert db_session.scalars(select(PublicVote)).all() == []
+    assert db_session.scalars(select(VoterSession)).all() == []
+    assert db_session.scalars(select(VotingSession)).all() == []
+    assert db_session.scalars(select(ResultSnapshot)).all() == []
+    assert db_session.scalars(select(ScreenState)).all() == []
+    assert db_session.scalars(select(AuditLog).where(AuditLog.event_id == event_id)).all() == []
+
+
+def test_delete_competition_removes_only_competition_associated_data(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    event_id = client.post("/api/events", json={"name": "Evento"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Contest da eliminare",
+            "judge_voting_enabled": False,
+            "public_weight": 100,
+            "judge_weight": 0,
+        },
+    ).json()["id"]
+    survivor_competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Contest che resta",
+            "judge_voting_enabled": False,
+            "public_weight": 100,
+            "judge_weight": 0,
+        },
+    ).json()["id"]
+    participant_id = client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "anna", "display_name": "Anna", "order_index": 1},
+    ).json()["id"]
+    criterion_id = client.post(
+        f"/api/competitions/{competition_id}/public-criteria",
+        json={"name": "Gradimento"},
+    ).json()["id"]
+    deleted = client.delete(f"/api/competitions/{competition_id}")
+
+    assert deleted.status_code == 204
+    assert db_session.scalar(select(Competition).where(Competition.id == competition_id)) is None
+    assert (
+        db_session.scalar(select(Competition).where(Competition.id == survivor_competition_id))
+        is not None
+    )
+    assert db_session.scalar(select(Participant).where(Participant.id == participant_id)) is None
+    assert (
+        db_session.scalar(select(PublicVoteCriterion).where(PublicVoteCriterion.id == criterion_id))
+        is None
+    )
+    assert db_session.scalars(select(PublicVote)).all() == []
+    assert db_session.scalars(select(VoterSession)).all() == []
+    assert db_session.scalars(select(VotingSession)).all() == []
+    assert db_session.scalars(select(ResultSnapshot)).all() == []
+    assert (
+        db_session.scalars(select(AuditLog).where(AuditLog.competition_id == competition_id)).all()
+        == []
+    )
+    assert client.get(f"/api/events/{event_id}").status_code == 200
 
 
 def test_admin_can_patch_delete_and_get_404(client: TestClient) -> None:

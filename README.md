@@ -46,6 +46,22 @@ npm install
 npm run dev
 ```
 
+## Workflow admin MVP
+
+Il setup operativo e:
+
+1. crea evento, che parte in `draft`;
+2. crea competizione, che resta `draft`;
+3. configura partecipanti, criteri, giudici, pesi, metodo pubblico e accesso;
+4. controlla `GET /api/competitions/{competition_id}/setup-status`;
+5. porta l'evento a `live` solo quando tutte le competizioni sono complete;
+6. apri/chiudi votazioni e controlla lo schermo;
+7. calcola risultati e congela snapshot finale.
+
+`ready` non e uno stato scelto liberamente dall'admin: il backend lo deriva da un setup
+valido. Quando un evento diventa `live`, la configurazione viene bloccata; restano
+abilitate gestione votazioni, schermo e risultati.
+
 ## Migrazioni
 
 ```bash

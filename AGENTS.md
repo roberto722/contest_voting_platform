@@ -65,6 +65,7 @@ Struttura consigliata:
 - `backend/app/models/`
 - `backend/app/schemas/`
 - `backend/app/services/`
+  - `setup_service.py`
   - `scoring_service.py`
   - `voting_service.py`
   - `access_service.py`
@@ -147,6 +148,28 @@ Stati voting session:
 
 Ogni riapertura della votazione deve creare una nuova `VotingSession`.
 
+## Workflow operativo admin
+
+La configurazione segue una sequenza unica:
+
+1. Evento.
+2. Impostazioni competizione.
+3. Partecipanti.
+4. Criteri pubblico, solo se richiesti dal metodo di voto.
+5. Criteri giudici, solo se voto giudici attivo.
+6. Giudici e assegnazioni.
+7. Review configurazione.
+8. Live, votazioni e schermo.
+9. Risultati e freeze.
+
+Gli eventi partono sempre in stato `draft`. Portare un evento a `live` abilita gestione
+schermo e votazioni, ma deve fallire se una competizione dell'evento ha setup incompleto.
+Quando un evento non e piu `draft`, la configurazione e bloccata: non aggiungere o
+modificare competizioni, partecipanti, criteri, giudici o assegnazioni.
+
+Le competizioni appena create restano `draft`. Lo stato `ready` non e scelto liberamente
+dall'admin: deriva automaticamente da una configurazione valida calcolata dal backend.
+
 ## Regole business non negoziabili
 
 - Non hardcodare contest musicali, costumi o altri tipi specifici nella logica.
@@ -161,8 +184,18 @@ Ogni riapertura della votazione deve creare una nuova `VotingSession`.
 - Dopo il freeze, leggere i risultati finali da `ResultSnapshot`.
 - Non mostrare automaticamente la classifica live durante la votazione, salvo comando
   esplicito dell'admin.
+- Non aprire votazioni se l'evento contenitore non e `live`.
+- Non portare un evento a `live` se esistono competizioni incomplete o se non esiste
+  alcuna competizione.
+- Non permettere modifiche di configurazione quando l'evento non e `draft`.
 - Hashare PIN, access code, token, IP e user agent quando vengono salvati per accesso o
   identificazione votante.
+- Non mostrare access code giudice recuperati dal database: salva solo hash. Se un admin
+  perde il codice, deve rigenerarlo; il nuovo codice puo essere mostrato solo nella
+  risposta immediata alla rigenerazione o alla creazione.
+- Ogni `Judge` puo essere assegnato a piu `Competition` dello stesso evento tramite
+  `CompetitionJudge`; l'interfaccia admin deve permettere multi-assegnazione senza
+  dipendere solo dalla competizione correntemente selezionata.
 - Il pubblico non richiede login; usa token anonimo lato client salvato in localStorage o
   cookie e hash lato database.
 
@@ -177,6 +210,15 @@ Ogni riapertura della votazione deve creare una nuova `VotingSession`.
 - verifica se un utente puo votare;
 - modifica voto quando consentita;
 - blocco voti a votazione chiusa.
+
+`SetupService` deve gestire:
+
+- calcolo setup competizione;
+- step completati e mancanti;
+- validazione apertura votazione;
+- validazione passaggio evento a `live`;
+- messaggi leggibili per la UI;
+- aggiornamento derivato dello stato `ready`.
 
 `AccessService` deve gestire:
 
@@ -249,8 +291,10 @@ Implementa endpoint per:
 - CRUD criteri pubblici.
 - CRUD criteri giudici.
 - CRUD giudici.
-- associazione giudici/competizioni.
+- rigenerazione access code giudici con risposta one-time del nuovo codice.
+- associazione giudici/competizioni anche multi-competizione per singolo giudice.
 - apertura, chiusura e lista voting session.
+- setup status competizione (`GET /api/competitions/{competition_id}/setup-status`).
 - voto pubblico e summary voti pubblici.
 - voto giudici e stato completamento.
 - risultati, freeze risultati, risultati finali.
@@ -265,15 +309,23 @@ Implementa quattro aree principali.
 Area admin:
 
 - dashboard eventi;
+- workflow a step: Evento, Competizione, Partecipanti, Criteri pubblico, Criteri
+  giudici, Giudici, Review, Live, Schermo, Risultati;
 - dettaglio evento;
 - lista e configurazione competizioni;
 - gestione partecipanti;
 - gestione criteri pubblici e giudici;
 - gestione giudici;
+- assegnazione di uno stesso giudice a piu competizioni dell'evento;
+- rigenerazione codici accesso giudici senza rendere leggibili gli hash salvati;
 - apertura, chiusura e riapertura votazioni;
 - vista risultati;
 - freeze risultati;
 - controllo schermata pubblica.
+
+Gli step devono essere abilitati progressivamente. La review deve mostrare checklist,
+problemi mancanti e stato `can_open_voting`; il bottone per aprire votazione deve
+comparire o essere attivo solo quando il backend indica che l'apertura e consentita.
 
 Area pubblico:
 
@@ -395,4 +447,3 @@ Deve permettere end-to-end:
 - freeze risultati;
 - classifica e podio su schermo pubblico;
 - controllo schermo da pannello admin.
-

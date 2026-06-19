@@ -1,9 +1,11 @@
+from secrets import token_urlsafe
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, select
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
+    AuditLog,
     Competition,
     CompetitionJudge,
     Event,
@@ -12,6 +14,8 @@ from app.models import (
     Participant,
     PublicVoteCriterion,
 )
+from app.models.enums import CompetitionStatus, EventStatus
+from app.services import audit_service, setup_service
 from app.services.access_service import hash_secret
 
 
@@ -20,6 +24,21 @@ class ResourceNotFound(Exception):
         self.resource = resource
         self.resource_id = resource_id
         super().__init__(f"{resource} {resource_id} not found")
+
+
+class AdminStateError(Exception):
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 409,
+        issues: list[str] | None = None,
+        messages: list[str] | None = None,
+    ) -> None:
+        self.message = message
+        self.status_code = status_code
+        self.issues = issues or []
+        self.messages = messages or []
+        super().__init__(message)
 
 
 def get_required[ModelT](
@@ -52,8 +71,60 @@ def _delete(db: Session, instance: object) -> None:
     db.commit()
 
 
+def _audit(
+    db: Session,
+    *,
+    event_id: str,
+    action: str,
+    entity_type: str,
+    entity_id: str | None = None,
+    competition_id: str | None = None,
+    details_json: dict[str, Any] | None = None,
+) -> None:
+    audit_service.record_audit_log(
+        db,
+        event_id=event_id,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        competition_id=competition_id,
+        actor_type="admin",
+        actor_label="Admin",
+        details_json=details_json,
+    )
+
+
+def _ensure_event_configuration_editable(event: Event) -> None:
+    if event.status != EventStatus.DRAFT:
+        raise AdminStateError("event configuration is locked after draft")
+
+
+def _ensure_competition_configuration_editable(competition: Competition) -> None:
+    _ensure_event_configuration_editable(competition.event)
+
+
+def _set_event_live(db: Session, event: Event) -> None:
+    setup_status = setup_service.get_event_setup_status(db, event)
+    if not setup_status["can_go_live"]:
+        raise AdminStateError(
+            "event is not ready for live",
+            issues=setup_status["issues"],
+            messages=setup_status["messages"],
+        )
+    event.status = EventStatus.LIVE
+
+
 def create_event(db: Session, data: dict[str, Any]) -> Event:
-    return _save(db, Event(**data))
+    event = _save(db, Event(**data))
+    _audit(
+        db,
+        event_id=event.id,
+        action="admin_event_created",
+        entity_type="event",
+        entity_id=event.id,
+        details_json={"name": event.name, "status": event.status.value},
+    )
+    return event
 
 
 def list_events(db: Session) -> list[Event]:
@@ -65,19 +136,66 @@ def get_event(db: Session, event_id: str) -> Event:
 
 
 def update_event(db: Session, event_id: str, data: dict[str, Any]) -> Event:
-    return _update(db, get_event(db, event_id), data)
+    event = get_event(db, event_id)
+    requested_status = data.pop("status", None)
+    old_status = event.status
+
+    if requested_status is not None:
+        new_status = EventStatus(requested_status)
+        allowed_transitions = {
+            EventStatus.DRAFT: {EventStatus.DRAFT, EventStatus.LIVE},
+            EventStatus.LIVE: {EventStatus.LIVE, EventStatus.CLOSED},
+            EventStatus.CLOSED: {EventStatus.CLOSED, EventStatus.ARCHIVED},
+            EventStatus.ARCHIVED: {EventStatus.ARCHIVED},
+        }
+        if new_status not in allowed_transitions[event.status]:
+            raise AdminStateError("invalid event status transition")
+        if new_status == EventStatus.LIVE and event.status != EventStatus.LIVE:
+            _set_event_live(db, event)
+        else:
+            event.status = new_status
+
+    event = _update(db, event, data)
+    _audit(
+        db,
+        event_id=event.id,
+        action="admin_event_updated",
+        entity_type="event",
+        entity_id=event.id,
+        details_json={**data, "old_status": old_status.value, "status": event.status.value},
+    )
+    return event
 
 
 def delete_event(db: Session, event_id: str) -> None:
-    _delete(db, get_event(db, event_id))
+    event = get_event(db, event_id)
+    db.execute(delete(AuditLog).where(AuditLog.event_id == event.id))
+    db.delete(event)
+    db.commit()
 
 
 def create_competition(db: Session, event_id: str, data: dict[str, Any]) -> Competition:
     event = get_event(db, event_id)
+    _ensure_event_configuration_editable(event)
     access_pin = data.pop("access_pin", None)
     if access_pin:
         data["access_pin_hash"] = hash_secret(access_pin)
-    return _save(db, Competition(event=event, **data))
+    competition = _save(db, Competition(event=event, **data))
+    refresh_competition_status(db, competition.id)
+    _audit(
+        db,
+        event_id=event.id,
+        competition_id=competition.id,
+        action="admin_competition_created",
+        entity_type="competition",
+        entity_id=competition.id,
+        details_json={
+            "name": competition.name,
+            "status": competition.status.value,
+            "public_vote_method": competition.public_vote_method.value,
+        },
+    )
+    return competition
 
 
 def list_competitions(db: Session, event_id: str) -> list[Competition]:
@@ -96,19 +214,48 @@ def get_competition(db: Session, competition_id: str) -> Competition:
 
 
 def update_competition(db: Session, competition_id: str, data: dict[str, Any]) -> Competition:
+    competition = get_competition(db, competition_id)
+    _ensure_competition_configuration_editable(competition)
     access_pin = data.pop("access_pin", None)
     if access_pin:
         data["access_pin_hash"] = hash_secret(access_pin)
-    return _update(db, get_competition(db, competition_id), data)
+    competition = _update(db, competition, data)
+    refresh_competition_status(db, competition.id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_competition_updated",
+        entity_type="competition",
+        entity_id=competition.id,
+        details_json=data,
+    )
+    return competition
 
 
 def delete_competition(db: Session, competition_id: str) -> None:
-    _delete(db, get_competition(db, competition_id))
+    competition = get_competition(db, competition_id)
+    _ensure_competition_configuration_editable(competition)
+    db.execute(delete(AuditLog).where(AuditLog.competition_id == competition.id))
+    db.delete(competition)
+    db.commit()
 
 
 def create_participant(db: Session, competition_id: str, data: dict[str, Any]) -> Participant:
     competition = get_competition(db, competition_id)
-    return _save(db, Participant(competition=competition, **data))
+    _ensure_competition_configuration_editable(competition)
+    participant = _save(db, Participant(competition=competition, **data))
+    refresh_competition_status(db, competition_id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_participant_created",
+        entity_type="participant",
+        entity_id=participant.id,
+        details_json={"display_name": participant.display_name, "active": participant.active},
+    )
+    return participant
 
 
 def list_participants(db: Session, competition_id: str) -> list[Participant]:
@@ -127,11 +274,37 @@ def get_participant(db: Session, participant_id: str) -> Participant:
 
 
 def update_participant(db: Session, participant_id: str, data: dict[str, Any]) -> Participant:
-    return _update(db, get_participant(db, participant_id), data)
+    participant = get_participant(db, participant_id)
+    _ensure_competition_configuration_editable(participant.competition)
+    participant = _update(db, participant, data)
+    refresh_competition_status(db, participant.competition_id)
+    _audit(
+        db,
+        event_id=participant.competition.event_id,
+        competition_id=participant.competition_id,
+        action="admin_participant_updated",
+        entity_type="participant",
+        entity_id=participant.id,
+        details_json=data,
+    )
+    return participant
 
 
 def delete_participant(db: Session, participant_id: str) -> None:
-    _delete(db, get_participant(db, participant_id))
+    participant = get_participant(db, participant_id)
+    competition = participant.competition
+    _ensure_competition_configuration_editable(competition)
+    _delete(db, participant)
+    refresh_competition_status(db, competition.id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_participant_deleted",
+        entity_type="participant",
+        entity_id=participant.id,
+        details_json={"display_name": participant.display_name},
+    )
 
 
 def create_public_criterion(
@@ -140,7 +313,19 @@ def create_public_criterion(
     data: dict[str, Any],
 ) -> PublicVoteCriterion:
     competition = get_competition(db, competition_id)
-    return _save(db, PublicVoteCriterion(competition=competition, **data))
+    _ensure_competition_configuration_editable(competition)
+    criterion = _save(db, PublicVoteCriterion(competition=competition, **data))
+    refresh_competition_status(db, competition_id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_public_criterion_created",
+        entity_type="public_criterion",
+        entity_id=criterion.id,
+        details_json={"name": criterion.name, "active": criterion.active},
+    )
+    return criterion
 
 
 def list_public_criteria(db: Session, competition_id: str) -> list[PublicVoteCriterion]:
@@ -163,11 +348,37 @@ def update_public_criterion(
     criterion_id: str,
     data: dict[str, Any],
 ) -> PublicVoteCriterion:
-    return _update(db, get_public_criterion(db, criterion_id), data)
+    criterion = get_public_criterion(db, criterion_id)
+    _ensure_competition_configuration_editable(criterion.competition)
+    criterion = _update(db, criterion, data)
+    refresh_competition_status(db, criterion.competition_id)
+    _audit(
+        db,
+        event_id=criterion.competition.event_id,
+        competition_id=criterion.competition_id,
+        action="admin_public_criterion_updated",
+        entity_type="public_criterion",
+        entity_id=criterion.id,
+        details_json=data,
+    )
+    return criterion
 
 
 def delete_public_criterion(db: Session, criterion_id: str) -> None:
-    _delete(db, get_public_criterion(db, criterion_id))
+    criterion = get_public_criterion(db, criterion_id)
+    competition = criterion.competition
+    _ensure_competition_configuration_editable(competition)
+    _delete(db, criterion)
+    refresh_competition_status(db, competition.id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_public_criterion_deleted",
+        entity_type="public_criterion",
+        entity_id=criterion.id,
+        details_json={"name": criterion.name},
+    )
 
 
 def create_judge_criterion(
@@ -176,7 +387,19 @@ def create_judge_criterion(
     data: dict[str, Any],
 ) -> JudgeCriterion:
     competition = get_competition(db, competition_id)
-    return _save(db, JudgeCriterion(competition=competition, **data))
+    _ensure_competition_configuration_editable(competition)
+    criterion = _save(db, JudgeCriterion(competition=competition, **data))
+    refresh_competition_status(db, competition_id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_judge_criterion_created",
+        entity_type="judge_criterion",
+        entity_id=criterion.id,
+        details_json={"name": criterion.name, "active": criterion.active},
+    )
+    return criterion
 
 
 def list_judge_criteria(db: Session, competition_id: str) -> list[JudgeCriterion]:
@@ -195,23 +418,66 @@ def get_judge_criterion(db: Session, criterion_id: str) -> JudgeCriterion:
 
 
 def update_judge_criterion(db: Session, criterion_id: str, data: dict[str, Any]) -> JudgeCriterion:
-    return _update(db, get_judge_criterion(db, criterion_id), data)
+    criterion = get_judge_criterion(db, criterion_id)
+    _ensure_competition_configuration_editable(criterion.competition)
+    criterion = _update(db, criterion, data)
+    refresh_competition_status(db, criterion.competition_id)
+    _audit(
+        db,
+        event_id=criterion.competition.event_id,
+        competition_id=criterion.competition_id,
+        action="admin_judge_criterion_updated",
+        entity_type="judge_criterion",
+        entity_id=criterion.id,
+        details_json=data,
+    )
+    return criterion
 
 
 def delete_judge_criterion(db: Session, criterion_id: str) -> None:
-    _delete(db, get_judge_criterion(db, criterion_id))
+    criterion = get_judge_criterion(db, criterion_id)
+    competition = criterion.competition
+    _ensure_competition_configuration_editable(competition)
+    _delete(db, criterion)
+    refresh_competition_status(db, competition.id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_judge_criterion_deleted",
+        entity_type="judge_criterion",
+        entity_id=criterion.id,
+        details_json={"name": criterion.name},
+    )
 
 
 def create_judge(db: Session, event_id: str, data: dict[str, Any]) -> Judge:
     event = get_event(db, event_id)
+    _ensure_event_configuration_editable(event)
     access_code = data.pop("access_code")
     data["access_code_hash"] = hash_secret(access_code)
-    return _save(db, Judge(event=event, **data))
+    judge = _save(db, Judge(event=event, **data))
+    _audit(
+        db,
+        event_id=event.id,
+        action="admin_judge_created",
+        entity_type="judge",
+        entity_id=judge.id,
+        details_json={"display_name": judge.display_name, "active": judge.active},
+    )
+    return judge
 
 
 def list_judges(db: Session, event_id: str) -> list[Judge]:
     get_event(db, event_id)
-    return list(db.scalars(select(Judge).where(Judge.event_id == event_id).order_by(Judge.name)))
+    return list(
+        db.scalars(
+            select(Judge)
+            .where(Judge.event_id == event_id)
+            .options(selectinload(Judge.competitions))
+            .order_by(Judge.name)
+        )
+    )
 
 
 def get_judge(db: Session, judge_id: str) -> Judge:
@@ -219,19 +485,59 @@ def get_judge(db: Session, judge_id: str) -> Judge:
 
 
 def update_judge(db: Session, judge_id: str, data: dict[str, Any]) -> Judge:
+    judge = get_judge(db, judge_id)
+    _ensure_event_configuration_editable(judge.event)
     access_code = data.pop("access_code", None)
     if access_code:
         data["access_code_hash"] = hash_secret(access_code)
-    return _update(db, get_judge(db, judge_id), data)
+    judge = _update(db, judge, data)
+    _audit(
+        db,
+        event_id=judge.event_id,
+        action="admin_judge_updated",
+        entity_type="judge",
+        entity_id=judge.id,
+        details_json=data,
+    )
+    return judge
+
+
+def regenerate_judge_access_code(db: Session, judge_id: str) -> tuple[Judge, str]:
+    access_code = token_urlsafe(12)
+    judge = get_judge(db, judge_id)
+    _ensure_event_configuration_editable(judge.event)
+    judge = _update(db, judge, {"access_code_hash": hash_secret(access_code)})
+    _audit(
+        db,
+        event_id=judge.event_id,
+        action="admin_judge_access_code_regenerated",
+        entity_type="judge",
+        entity_id=judge.id,
+        details_json={"display_name": judge.display_name},
+    )
+    return judge, access_code
 
 
 def delete_judge(db: Session, judge_id: str) -> None:
-    _delete(db, get_judge(db, judge_id))
+    judge = get_judge(db, judge_id)
+    _ensure_event_configuration_editable(judge.event)
+    _delete(db, judge)
+    _audit(
+        db,
+        event_id=judge.event_id,
+        action="admin_judge_deleted",
+        entity_type="judge",
+        entity_id=judge.id,
+        details_json={"display_name": judge.display_name},
+    )
 
 
 def assign_judge(db: Session, competition_id: str, judge_id: str) -> CompetitionJudge:
-    get_competition(db, competition_id)
-    get_judge(db, judge_id)
+    competition = get_competition(db, competition_id)
+    _ensure_competition_configuration_editable(competition)
+    judge = get_judge(db, judge_id)
+    if judge.event_id != competition.event_id:
+        raise AdminStateError("judge does not belong to competition event")
     existing = db.scalar(
         select(CompetitionJudge).where(
             CompetitionJudge.competition_id == competition_id,
@@ -239,8 +545,28 @@ def assign_judge(db: Session, competition_id: str, judge_id: str) -> Competition
         )
     )
     if existing is not None:
+        _audit(
+            db,
+            event_id=competition.event_id,
+            competition_id=competition.id,
+            action="admin_judge_assignment_existing",
+            entity_type="competition_judge",
+            entity_id=existing.id,
+            details_json={"judge_id": judge.id, "judge_name": judge.display_name},
+        )
         return existing
-    return _save(db, CompetitionJudge(competition_id=competition_id, judge_id=judge_id))
+    assignment = _save(db, CompetitionJudge(competition_id=competition_id, judge_id=judge_id))
+    refresh_competition_status(db, competition_id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_judge_assigned",
+        entity_type="competition_judge",
+        entity_id=assignment.id,
+        details_json={"judge_id": judge.id, "judge_name": judge.display_name},
+    )
+    return assignment
 
 
 def remove_judge_assignment(db: Session, competition_id: str, judge_id: str) -> None:
@@ -252,4 +578,47 @@ def remove_judge_assignment(db: Session, competition_id: str, judge_id: str) -> 
     )
     if assignment is None:
         raise ResourceNotFound("competition judge assignment", f"{competition_id}:{judge_id}")
+    competition = assignment.competition
+    _ensure_competition_configuration_editable(competition)
+    judge = assignment.judge
     _delete(db, assignment)
+    refresh_competition_status(db, competition.id)
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_judge_unassigned",
+        entity_type="competition_judge",
+        entity_id=assignment.id,
+        details_json={"judge_id": judge.id, "judge_name": judge.display_name},
+    )
+
+
+def get_competition_setup_status(db: Session, competition_id: str) -> dict[str, Any]:
+    competition = get_competition(db, competition_id)
+    return setup_service.get_competition_setup_status(db, competition)
+
+
+def refresh_competition_status(db: Session, competition_id: str) -> CompetitionStatus:
+    competition = get_competition(db, competition_id)
+    if competition.status not in [CompetitionStatus.DRAFT, CompetitionStatus.READY]:
+        return competition.status
+
+    setup_status = setup_service.get_competition_setup_status(db, competition)
+    new_status = CompetitionStatus.READY if setup_status["is_ready"] else CompetitionStatus.DRAFT
+
+    if competition.status != new_status:
+        old_status = competition.status
+        competition.status = new_status
+        db.commit()
+        db.refresh(competition)
+        _audit(
+            db,
+            event_id=competition.event_id,
+            competition_id=competition.id,
+            action="competition_status_auto_updated",
+            entity_type="competition",
+            entity_id=competition.id,
+            details_json={"old_status": old_status.value, "new_status": new_status.value},
+        )
+    return new_status

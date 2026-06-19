@@ -4,7 +4,13 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.schemas.admin import CompetitionJudgeRead, JudgeCreate, JudgeRead, JudgeUpdate
+from app.schemas.admin import (
+    CompetitionJudgeRead,
+    JudgeAccessCodeResetRead,
+    JudgeCreate,
+    JudgeRead,
+    JudgeUpdate,
+)
 from app.services import admin_service
 
 router = APIRouter(tags=["judges"])
@@ -35,6 +41,21 @@ def update_judge(
     db: Annotated[Session, Depends(get_db)],
 ) -> JudgeRead:
     return admin_service.update_judge(db, judge_id, payload.model_dump(exclude_unset=True))
+
+
+@router.post(
+    "/api/judges/{judge_id}/access-code/regenerate",
+    response_model=JudgeAccessCodeResetRead,
+)
+def regenerate_judge_access_code(
+    judge_id: str,
+    db: Annotated[Session, Depends(get_db)],
+) -> JudgeAccessCodeResetRead:
+    judge, access_code = admin_service.regenerate_judge_access_code(db, judge_id)
+    return JudgeAccessCodeResetRead(
+        judge=JudgeRead.model_validate(judge),
+        access_code=access_code,
+    )
 
 
 @router.delete("/api/judges/{judge_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,4 +1,5 @@
 from app.models.competition import Competition
+from app.models.audit import AuditLog
 from app.models.criteria import JudgeCriterion, PublicVoteCriterion
 from app.models.enums import (
     AccessMethod,
@@ -18,6 +19,7 @@ from app.models.voting import VoterSession, VotingSession
 
 __all__ = [
     "AccessMethod",
+    "AuditLog",
     "Competition",
     "CompetitionJudge",
     "CompetitionStatus",

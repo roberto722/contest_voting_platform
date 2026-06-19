@@ -3,7 +3,7 @@ from hashlib import sha256
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Competition, CompetitionJudge, Judge, VoterSession
+from app.models import AccessMethod, Competition, CompetitionJudge, Judge, VoterSession
 from app.models.mixins import utc_now
 
 
@@ -22,6 +22,20 @@ def verify_judge_access(
     return judge
 
 
+def verify_public_competition_access(
+    db: Session,
+    competition_id: str,
+    pin: str | None = None,
+) -> Competition:
+    competition = db.get(Competition, competition_id)
+    if competition is None:
+        raise PublicAccessError("competition not found", status_code=404)
+    if competition.access_method is AccessMethod.QR_PIN:
+        if not pin or competition.access_pin_hash != hash_secret(pin):
+            raise PublicAccessError("invalid competition pin", status_code=403)
+    return competition
+
+
 def list_judge_competitions(db: Session, judge_id: str, access_code: str) -> list[Competition]:
     judge = verify_judge_access(db, judge_id, access_code)
     assignments = db.scalars(
@@ -38,6 +52,13 @@ def list_judge_competitions(db: Session, judge_id: str, access_code: str) -> lis
 
 
 class JudgeAccessError(Exception):
+    def __init__(self, message: str, status_code: int = 403) -> None:
+        self.message = message
+        self.status_code = status_code
+        super().__init__(message)
+
+
+class PublicAccessError(Exception):
     def __init__(self, message: str, status_code: int = 403) -> None:
         self.message = message
         self.status_code = status_code
