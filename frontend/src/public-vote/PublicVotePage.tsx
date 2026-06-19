@@ -295,7 +295,7 @@ export default function PublicVotePage() {
           <>
             <BrandHeader title="Scegli il tuo artista" subtitle={data.competition.name} />
             <div className="public-context">
-              <span>{data.competition.public_vote_method.replaceAll("_", " ")}</span>
+              <span>{data.competition.public_vote_method.replace(/_/g, " ")}</span>
               <strong>● Votazione aperta</strong>
             </div>
             {data.competition.public_vote_method !== "ranked_choice" ? (

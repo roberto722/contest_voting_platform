@@ -1,10 +1,13 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import QRCode from "qrcode";
 
+import { publicVoteHref } from "./public-vote/publicVote";
+import "./styles.css";
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const websocketBaseUrl = apiBaseUrl.replace(/^http/, "ws");
 
-type AppView = "admin" | "public" | "judge" | "screen";
+type AppView = "admin" | "judge" | "screen";
 
 type EventStatus = "draft" | "live" | "closed" | "archived";
 type CompetitionStatus =
@@ -128,13 +131,6 @@ type PublicVoteSummaryRead = {
   participants: { participant_id: string; display_name: string; vote_count: number }[];
 };
 
-type PublicCompetitionAccessRead = {
-  competition_id: string;
-  event_id: string;
-  access_method: AccessMethod;
-  access_granted: boolean;
-};
-
 type ScreenStateRead = {
   id: string;
   event_id: string;
@@ -230,17 +226,6 @@ type AdminState = {
   auditLogs: AuditLogRead[];
 };
 
-type PublicState = {
-  competition: CompetitionRead | null;
-  participants: ParticipantRead[];
-  publicCriteria: CriterionRead[];
-  sessions: VotingSessionRead[];
-  selectedParticipantId: string;
-  rankedParticipantIds: string[];
-  criteriaScores: Record<string, number>;
-  confirmation: string;
-};
-
 type JudgeState = {
   access: JudgeAccessRead | null;
   judgeId: string;
@@ -287,17 +272,6 @@ const emptyState: AdminState = {
   setupStatus: null,
   screenState: null,
   auditLogs: [],
-};
-
-const emptyPublicState: PublicState = {
-  competition: null,
-  participants: [],
-  publicCriteria: [],
-  sessions: [],
-  selectedParticipantId: "",
-  rankedParticipantIds: [],
-  criteriaScores: {},
-  confirmation: "",
 };
 
 const emptyJudgeState: JudgeState = {
@@ -806,7 +780,7 @@ export default function App() {
           public_vote_url:
             textValue(data, "public_vote_url") ||
             (selectedCompetitionId
-              ? `${window.location.origin}?view=public&competitionId=${selectedCompetitionId}`
+              ? `${window.location.origin}${publicVoteHref(selectedCompetitionId)}`
               : ""),
           countdown_seconds: numberValue(data, "countdown_seconds", 90),
           reveal_upto: numberValue(data, "reveal_upto", 0),
@@ -822,13 +796,7 @@ export default function App() {
         <div>
           <p className="eyebrow">Contest Voting Platform</p>
           <h1>
-            {view === "admin"
-              ? "Admin serata"
-              : view === "public"
-                ? "Voto pubblico"
-                : view === "judge"
-                  ? "Giudici"
-                  : "Schermo pubblico"}
+            {view === "admin" ? "Admin serata" : view === "judge" ? "Giudici" : "Schermo pubblico"}
           </h1>
         </div>
         <div className="topbar-actions">
@@ -839,13 +807,6 @@ export default function App() {
               onClick={() => setView("admin")}
             >
               Admin
-            </button>
-            <button
-              className={view === "public" ? "active" : ""}
-              type="button"
-              onClick={() => setView("public")}
-            >
-              Pubblico
             </button>
             <button
               className={view === "judge" ? "active" : ""}
@@ -868,9 +829,7 @@ export default function App() {
         </div>
       </header>
 
-      {view === "public" ? (
-        <PublicArea setMessage={setMessage} />
-      ) : view === "judge" ? (
+      {view === "judge" ? (
         <JudgeArea setMessage={setMessage} />
       ) : view === "screen" ? (
         <ScreenArea setMessage={setMessage} />
@@ -1401,7 +1360,7 @@ export default function App() {
                     placeholder="URL voto pubblico"
                     defaultValue={
                       String(state.screenState?.payload_json.public_vote_url ?? "") ||
-                      `${window.location.origin}?view=public&competitionId=${selectedCompetitionId}`
+                      `${window.location.origin}${publicVoteHref(selectedCompetitionId)}`
                     }
                   />
                   <input
@@ -2251,185 +2210,6 @@ function formatJudgeCompetitionProgress(status: JudgeVoteStatusRead | undefined)
   return `In attesa (${progress})`;
 }
 
-function PublicArea({ setMessage }: { setMessage: (message: string) => void }) {
-  const [competitionId, setCompetitionId] = useState(
-    new URLSearchParams(window.location.search).get("competitionId") ?? ""
-  );
-  const [accessPin, setAccessPin] = useState("");
-  const [state, setState] = useState<PublicState>(emptyPublicState);
-  const openSession = state.sessions.find((session) => session.status === "open");
-  const canVote = Boolean(state.competition && openSession);
-
-  async function run(action: () => Promise<void>, doneMessage: string) {
-    try {
-      await action();
-      setMessage(doneMessage);
-    } catch (error) {
-      setMessage(`Errore: ${error instanceof Error ? error.message : "Errore inatteso"}`);
-    }
-  }
-
-  async function loadCompetition() {
-    const id = competitionId.trim();
-    if (!id) return;
-    await api<PublicCompetitionAccessRead>(`/api/competitions/${id}/public-access`, {
-      method: "POST",
-      body: JSON.stringify({ pin: accessPin || null }),
-    });
-    const [competition, participants, publicCriteria, sessions] = await Promise.all([
-      api<CompetitionRead>(`/api/competitions/${id}`),
-      api<ParticipantRead[]>(`/api/competitions/${id}/participants`),
-      api<CriterionRead[]>(`/api/competitions/${id}/public-criteria`),
-      api<VotingSessionRead[]>(`/api/competitions/${id}/voting-sessions`),
-    ]);
-    setState({
-      competition,
-      participants,
-      publicCriteria,
-      sessions,
-      selectedParticipantId: participants[0]?.id ?? "",
-      rankedParticipantIds: participants.slice(0, competition.max_votes_per_user).map((item) => item.id),
-      criteriaScores: Object.fromEntries(publicCriteria.map((criterion) => [criterion.id, criterion.min_score])),
-      confirmation: "",
-    });
-  }
-
-  async function submitPublicVote() {
-    if (!state.competition || !canVote) return;
-    const voterToken = getPublicVoterToken();
-    const payload =
-      state.competition.public_vote_method === "single_choice"
-        ? {
-            voter_token: voterToken,
-            method: "single_choice",
-            participant_id: state.selectedParticipantId,
-          }
-        : state.competition.public_vote_method === "ranked_choice"
-          ? {
-              voter_token: voterToken,
-              method: "ranked_choice",
-              ranked_participant_ids: state.rankedParticipantIds.filter(Boolean),
-            }
-          : {
-              voter_token: voterToken,
-              method: "criteria_rating",
-              ratings: [
-                {
-                  participant_id: state.selectedParticipantId,
-                  criteria: state.publicCriteria.map((criterion) => ({
-                    criterion_id: criterion.id,
-                    score: state.criteriaScores[criterion.id] ?? criterion.min_score,
-                  })),
-                },
-              ],
-            };
-
-    await api(`/api/competitions/${state.competition.id}/public-votes`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setState((current) => ({ ...current, confirmation: "Voto registrato" }));
-  }
-
-  useEffect(() => {
-    if (competitionId && !state.competition) {
-      void run(loadCompetition, "Competizione caricata");
-    }
-  }, [competitionId, state.competition]);
-
-  return (
-    <section className="public-shell">
-      <Panel title="Accesso competizione">
-        <div className="public-access">
-          <input
-            value={competitionId}
-            onChange={(event) => setCompetitionId(event.target.value)}
-            placeholder="ID competizione"
-          />
-          <input
-            value={accessPin}
-            onChange={(event) => setAccessPin(event.target.value)}
-            placeholder="PIN se richiesto"
-          />
-          <button type="button" onClick={() => run(loadCompetition, "Competizione caricata")}>
-            Entra
-          </button>
-        </div>
-      </Panel>
-
-      {state.competition ? (
-        <Panel title={state.competition.name}>
-          <div className="public-header">
-            <Metric label="Metodo" value={state.competition.public_vote_method} />
-            <Metric label="Stato" value={openSession ? "votazione aperta" : "votazione chiusa"} />
-          </div>
-          {!openSession ? (
-            <div className="closed-state">La votazione non e aperta in questo momento.</div>
-          ) : (
-            <div className="vote-surface">
-              {state.competition.public_vote_method === "single_choice" ? (
-                <ParticipantChoices
-                  participants={state.participants}
-                  selectedParticipantId={state.selectedParticipantId}
-                  onSelect={(participantId) =>
-                    setState((current) => ({ ...current, selectedParticipantId: participantId }))
-                  }
-                />
-              ) : null}
-
-              {state.competition.public_vote_method === "ranked_choice" ? (
-                <RankedChoice
-                  participants={state.participants}
-                  maxVotes={state.competition.max_votes_per_user}
-                  rankedParticipantIds={state.rankedParticipantIds}
-                  onChange={(rankedParticipantIds) =>
-                    setState((current) => ({ ...current, rankedParticipantIds }))
-                  }
-                />
-              ) : null}
-
-              {state.competition.public_vote_method === "criteria_rating" ? (
-                <>
-                  <ParticipantChoices
-                    participants={state.participants}
-                    selectedParticipantId={state.selectedParticipantId}
-                    onSelect={(participantId) =>
-                      setState((current) => ({ ...current, selectedParticipantId: participantId }))
-                    }
-                  />
-                  <CriteriaRating
-                    criteria={state.publicCriteria}
-                    scores={state.criteriaScores}
-                    onChange={(criterionId, score) =>
-                      setState((current) => ({
-                        ...current,
-                        criteriaScores: { ...current.criteriaScores, [criterionId]: score },
-                      }))
-                    }
-                  />
-                </>
-              ) : null}
-
-              <button
-                type="button"
-                disabled={
-                  !state.selectedParticipantId ||
-                  (state.competition.public_vote_method === "ranked_choice" &&
-                    state.rankedParticipantIds.filter(Boolean).length === 0)
-                }
-                onClick={() => run(submitPublicVote, "Voto inviato")}
-              >
-                Conferma voto
-              </button>
-              {state.confirmation ? <div className="confirmation">{state.confirmation}</div> : null}
-            </div>
-          )}
-        </Panel>
-      ) : null}
-    </section>
-  );
-}
-
 function ParticipantChoices({
   participants,
   selectedParticipantId,
@@ -2455,51 +2235,6 @@ function ParticipantChoices({
             <small>{badgesByParticipantId[participant.id]}</small>
           ) : null}
         </button>
-      ))}
-    </div>
-  );
-}
-
-function RankedChoice({
-  participants,
-  maxVotes,
-  rankedParticipantIds,
-  onChange,
-}: {
-  participants: ParticipantRead[];
-  maxVotes: number;
-  rankedParticipantIds: string[];
-  onChange: (rankedParticipantIds: string[]) => void;
-}) {
-  const slots = Array.from({ length: Math.min(maxVotes, participants.length) }, (_, index) => index);
-  return (
-    <div className="ranked-list">
-      {slots.map((index) => (
-        <label key={index}>
-          <span>Posizione {index + 1}</span>
-          <select
-            value={rankedParticipantIds[index] ?? ""}
-            onChange={(event) => {
-              const next = [...rankedParticipantIds];
-              next[index] = event.target.value;
-              onChange(next);
-            }}
-          >
-            <option value="">Seleziona</option>
-            {participants.map((participant) => (
-              <option
-                disabled={
-                  rankedParticipantIds.includes(participant.id) &&
-                  rankedParticipantIds[index] !== participant.id
-                }
-                key={participant.id}
-                value={participant.id}
-              >
-                {participant.display_name}
-              </option>
-            ))}
-          </select>
-        </label>
       ))}
     </div>
   );
@@ -2657,7 +2392,7 @@ function competitionNamesForJudge(judge: JudgeRead, competitions: CompetitionRea
 
 function initialViewFromUrl(): AppView {
   const view = new URLSearchParams(window.location.search).get("view");
-  return view === "public" || view === "judge" || view === "screen" ? view : "admin";
+  return view === "judge" || view === "screen" ? view : "admin";
 }
 
 function initialEventIdFromUrl(): string {
@@ -2799,18 +2534,4 @@ function numberValue(data: FormData, key: string, fallback: number): number {
 
 function slugValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
-function getPublicVoterToken(): string {
-  const key = "contest-public-voter-token";
-  const existing = window.localStorage.getItem(key);
-  if (existing) {
-    return existing;
-  }
-  const token =
-    typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  window.localStorage.setItem(key, token);
-  return token;
 }
