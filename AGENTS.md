@@ -82,6 +82,7 @@ Struttura consigliata:
 - `frontend/src/services/`
 - `frontend/src/hooks/`
 - `frontend/src/styles/`
+- `frontend/src/public-vote/`: entry point pubblico isolato, raggiungibile su `/vote`.
 - `docker-compose.yml`
 - `README.md`
 
@@ -329,6 +330,8 @@ comparire o essere attivo solo quando il backend indica che l'apertura e consent
 
 Area pubblico:
 
+- i link diretti e i QR devono usare `/vote?competitionId=<id>`;
+- il CSS Quasanremo del voto pubblico non deve modificare admin, giudici o schermo;
 - accesso competizione;
 - voto `single_choice`;
 - voto `ranked_choice`;

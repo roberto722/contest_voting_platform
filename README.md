@@ -20,9 +20,13 @@ docker compose up
 Servizi:
 
 - Frontend: http://localhost:5173
+- Voto pubblico: http://localhost:5173/vote
 - Backend: http://localhost:8000
 - Health check: http://localhost:8000/health
 - PostgreSQL: localhost:5432
+
+Un link diretto usa `http://localhost:5173/vote?competitionId=<id>`; senza ID la pagina
+mostra il form di accesso.
 
 ## Sviluppo backend
 
