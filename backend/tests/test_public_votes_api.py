@@ -41,6 +41,7 @@ def _create_competition(
     method: str = "single_choice",
     allow_vote_update: bool = False,
     max_votes_per_user: int = 1,
+    max_votes_per_competition: int = 1,
 ) -> tuple[str, str, list[str]]:
     event_id = client.post("/api/events", json={"name": "Serata Live"}).json()["id"]
     competition_id = client.post(
@@ -50,6 +51,7 @@ def _create_competition(
             "public_vote_method": method,
             "allow_vote_update": allow_vote_update,
             "max_votes_per_user": max_votes_per_user,
+            "max_votes_per_competition": max_votes_per_competition,
             "judge_voting_enabled": False,  # Disabilitato per i test pubblici standard
         },
     ).json()["id"]
@@ -232,3 +234,63 @@ def test_public_vote_supports_ranked_choice_and_criteria_rating(client: TestClie
     criteria_logs = client.get(f"/api/events/{criteria_event_id}/audit-logs")
     assert criteria_logs.status_code == 200
     assert "public_vote_submitted" in [item["action"] for item in criteria_logs.json()]
+
+
+def test_public_vote_limits_per_competition(client: TestClient) -> None:
+    # Create competition with max_votes_per_competition=2
+    event_id, competition_id, participant_ids = _create_competition(
+        client,
+        allow_vote_update=True,
+        max_votes_per_competition=2,
+    )
+
+    payload_1 = {
+        "voter_token": "voter-1",
+        "method": "single_choice",
+        "participant_id": participant_ids[0],
+    }
+    payload_2 = {
+        "voter_token": "voter-2",
+        "method": "single_choice",
+        "participant_id": participant_ids[0],
+    }
+
+    # Round 1
+    session_1_id = _open_voting(client, competition_id)
+    # voter-1 votes in Round 1
+    r1 = client.post(f"/api/competitions/{competition_id}/public-votes", json=payload_1)
+    assert r1.status_code == 201
+    # Close Round 1
+    client.post(f"/api/competitions/{competition_id}/voting-sessions/close", json={})
+
+    # Round 2
+    session_2_id = _open_voting(client, competition_id)
+    # voter-1 votes in Round 2 (voted in 2 unique sessions now)
+    r2 = client.post(f"/api/competitions/{competition_id}/public-votes", json=payload_1)
+    assert r2.status_code == 201
+
+    # voter-1 updates their vote in Round 2 (allowed since allow_vote_update is True and it's the same session)
+    r2_update = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        json={
+            "voter_token": "voter-1",
+            "method": "single_choice",
+            "participant_id": participant_ids[1],
+        },
+    )
+    assert r2_update.status_code == 201
+
+    # Close Round 2
+    client.post(f"/api/competitions/{competition_id}/voting-sessions/close", json={})
+
+    # Round 3
+    _open_voting(client, competition_id)
+    # voter-1 tries to vote in Round 3 (rejected because they already voted in session 1 and 2, exceeding limit of 2)
+    r3_fail = client.post(f"/api/competitions/{competition_id}/public-votes", json=payload_1)
+    assert r3_fail.status_code == 409
+    assert "voter has reached the maximum number of votes" in r3_fail.json()["detail"]
+
+    # voter-2 votes in Round 3 (allowed since they only voted in 0 sessions so far)
+    r3_success = client.post(f"/api/competitions/{competition_id}/public-votes", json=payload_2)
+    assert r3_success.status_code == 201
+

@@ -15,6 +15,7 @@ type Competition = {
   name: string;
   public_vote_method: PublicVoteMethod;
   max_votes_per_user: number;
+  max_votes_per_competition: number;
 };
 
 type Participant = { id: string; display_name: string; active: boolean };
@@ -181,6 +182,21 @@ export default function PublicVotePage() {
       void loadCompetition();
     }
   }, []);
+
+  useEffect(() => {
+    if (phase !== "ready" || !competitionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const sessions = await publicApi<VotingSession[]>(`/api/competitions/${competitionId}/voting-sessions`);
+        setData((curr) => (curr ? { ...curr, sessions } : null));
+      } catch (err) {
+        console.error("Errore nel polling delle sessioni:", err);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [phase, competitionId]);
 
   const votingState = data ? getVotingState(data.sessions) : "waiting";
   const canSubmit =

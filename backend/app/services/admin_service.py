@@ -13,6 +13,7 @@ from app.models import (
     JudgeCriterion,
     Participant,
     PublicVoteCriterion,
+    PublicVoteMethod,
 )
 from app.models.enums import CompetitionStatus, EventStatus
 from app.services import audit_service, setup_service
@@ -505,7 +506,6 @@ def update_judge(db: Session, judge_id: str, data: dict[str, Any]) -> Judge:
 def regenerate_judge_access_code(db: Session, judge_id: str) -> tuple[Judge, str]:
     access_code = token_urlsafe(12)
     judge = get_judge(db, judge_id)
-    _ensure_event_configuration_editable(judge.event)
     judge = _update(db, judge, {"access_code_hash": hash_secret(access_code)})
     _audit(
         db,
@@ -538,6 +538,8 @@ def assign_judge(db: Session, competition_id: str, judge_id: str) -> Competition
     judge = get_judge(db, judge_id)
     if judge.event_id != competition.event_id:
         raise AdminStateError("judge does not belong to competition event")
+    if not competition.judge_voting_enabled:
+        raise AdminStateError("judge voting is disabled for this competition")
     existing = db.scalar(
         select(CompetitionJudge).where(
             CompetitionJudge.competition_id == competition_id,
@@ -622,3 +624,152 @@ def refresh_competition_status(db: Session, competition_id: str) -> CompetitionS
             details_json={"old_status": old_status.value, "new_status": new_status.value},
         )
     return new_status
+
+
+def populate_competition_fake_data(
+    db: Session,
+    competition_id: str,
+    num_participants: int = 4,
+    num_judges: int = 3,
+    num_criteria: int = 3,
+) -> None:
+    competition = get_competition(db, competition_id)
+    _ensure_competition_configuration_editable(competition)
+
+    # Check if competition already has participants, criteria, or judges
+    has_participants = len(competition.participants) > 0
+    has_judge_criteria = len(competition.judge_criteria) > 0
+    has_public_criteria = len(competition.public_criteria) > 0
+
+    has_judges_assigned = db.scalar(
+        select(CompetitionJudge).where(CompetitionJudge.competition_id == competition_id)
+    ) is not None
+
+    if has_participants or has_judge_criteria or has_public_criteria or has_judges_assigned:
+        raise AdminStateError(
+            "La competizione contiene già dati (partecipanti, criteri o giudici) "
+            "e non può essere popolata con dati fake."
+        )
+
+    # Generate fake participants with name and surname
+    first_names = [
+        "Alessandro", "Sofia", "Francesco", "Giulia", "Lorenzo",
+        "Alice", "Mattia", "Aurora", "Andrea", "Emma",
+        "Gabriele", "Giorgia", "Riccardo", "Beatrice", "Tommaso",
+        "Sara", "Davide", "Martina", "Federico", "Chiara"
+    ]
+    last_names = [
+        "Rossi", "Ferrari", "Russo", "Bianchi", "Romano",
+        "Colombo", "Ricci", "Marini", "Greco", "Bruno",
+        "Gallo", "Conti", "De Luca", "Costa", "Giordano",
+        "Mancini", "Bernardi", "Rizzo", "Moretti", "Barbieri"
+    ]
+
+    for index in range(1, num_participants + 1):
+        first_name = first_names[(index - 1) % len(first_names)]
+        last_name = last_names[((index - 1) // len(first_names)) % len(last_names)]
+        full_name = f"{first_name} {last_name}"
+        slug = f"{first_name.lower()}_{last_name.lower()}"
+        if index > len(first_names) * len(last_names):
+            full_name += f" {index}"
+            slug += f"_{index}"
+
+        db.add(
+            Participant(
+                competition_id=competition_id,
+                name=slug,
+                display_name=full_name,
+                order_index=index,
+                active=True,
+            )
+        )
+
+    # Generate fake judge criteria (if judge voting is enabled)
+    if competition.judge_voting_enabled:
+        fake_judge_criteria = [
+            "Intonazione", "Presenza scenica", "Originalita", "Interpretazione",
+            "Arrangiamento", "Testo", "Look", "Carisma", "Vocalita", "Emozione"
+        ]
+        for index in range(1, num_criteria + 1):
+            criterion_name = fake_judge_criteria[(index - 1) % len(fake_judge_criteria)]
+            if index > len(fake_judge_criteria):
+                criterion_name += f"_{index}"
+            db.add(
+                JudgeCriterion(
+                    competition_id=competition_id,
+                    name=criterion_name,
+                    weight=1.0,
+                    order_index=index,
+                    active=True,
+                )
+            )
+
+    # Generate fake public criteria (if public voting is enabled and method is criteria_rating)
+    if competition.public_voting_enabled and competition.public_vote_method == PublicVoteMethod.CRITERIA_RATING:
+        fake_public_criteria = [
+            "Gradimento generale", "Ritmo", "Emozione", "Originalita",
+            "Testo", "Energia", "Coreografia", "Stile", "Coinvolgimento"
+        ]
+        for index in range(1, num_criteria + 1):
+            criterion_name = fake_public_criteria[(index - 1) % len(fake_public_criteria)]
+            if index > len(fake_public_criteria):
+                criterion_name += f"_{index}"
+            db.add(
+                PublicVoteCriterion(
+                    competition_id=competition_id,
+                    name=criterion_name,
+                    weight=1.0,
+                    order_index=index,
+                    active=True,
+                )
+            )
+
+    # Generate/assign judges (if judge voting is enabled)
+    if competition.judge_voting_enabled:
+        event = competition.event
+        event_judges = list(event.judges)
+
+        # Top up event judges to match num_judges if there are fewer
+        current_judges_count = len(event_judges)
+        if current_judges_count < num_judges:
+            for index in range(current_judges_count + 1, num_judges + 1):
+                access_code = token_urlsafe(8)  # short for ease of demo access
+                new_judge = Judge(
+                    event_id=event.id,
+                    name=f"giudice-{index}",
+                    display_name=f"Giudice {index}",
+                    access_code_hash=hash_secret(access_code),
+                    active=True,
+                )
+                db.add(new_judge)
+                event_judges.append(new_judge)
+
+            db.flush()  # to get judge IDs if created
+
+        # Assign judges to this competition
+        for judge in event_judges[:num_judges]:
+            db.add(
+                CompetitionJudge(
+                    competition_id=competition_id,
+                    judge_id=judge.id,
+                )
+            )
+
+    db.commit()
+    refresh_competition_status(db, competition_id)
+
+    _audit(
+        db,
+        event_id=competition.event_id,
+        competition_id=competition.id,
+        action="admin_competition_seeded_fake_data",
+        entity_type="competition",
+        entity_id=competition.id,
+        details_json={
+            "participants_count": num_participants,
+            "judges_count": num_judges if competition.judge_voting_enabled else 0,
+            "judge_voting_enabled": competition.judge_voting_enabled,
+            "public_voting_enabled": competition.public_voting_enabled,
+        },
+    )
+

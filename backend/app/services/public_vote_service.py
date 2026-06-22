@@ -46,6 +46,14 @@ def submit_public_vote(
         user_agent=user_agent,
     )
 
+    voted_session_ids = _get_voted_session_ids_for_competition(db, competition.id, voter_session.id)
+    if voting_session.id not in voted_session_ids:
+        if len(voted_session_ids) + 1 > competition.max_votes_per_competition:
+            raise PublicVoteError(
+                f"voter has reached the maximum number of votes ({competition.max_votes_per_competition}) for this competition",
+                status_code=409,
+            )
+
     existing_votes = _list_existing_votes(db, voting_session.id, voter_session.id)
     if existing_votes and not competition.allow_vote_update:
         raise PublicVoteError("voter has already voted in this voting session", status_code=409)
@@ -121,6 +129,23 @@ def _validate_public_voting_enabled(
         raise PublicVoteError("public voting is disabled for this competition", status_code=409)
     if competition.public_vote_method != submitted_method:
         raise PublicVoteError("vote method does not match competition configuration")
+
+
+def _get_voted_session_ids_for_competition(
+    db: Session,
+    competition_id: str,
+    voter_session_id: str,
+) -> set[str]:
+    return set(
+        db.scalars(
+            select(PublicVote.voting_session_id)
+            .where(
+                PublicVote.competition_id == competition_id,
+                PublicVote.voter_session_id == voter_session_id,
+            )
+            .distinct()
+        )
+    )
 
 
 def _list_existing_votes(

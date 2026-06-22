@@ -7,10 +7,12 @@ from app.db import get_db
 from app.schemas.admin import (
     CompetitionCreate,
     CompetitionRead,
+    CompetitionSeedFakeData,
     CompetitionSetupStatus,
     CompetitionUpdate,
 )
 from app.services import admin_service
+
 
 router = APIRouter(tags=["competitions"])
 
@@ -74,4 +76,23 @@ def delete_competition(
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     admin_service.delete_competition(db, competition_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/api/competitions/{competition_id}/seed-fake-data",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def seed_competition_fake_data(
+    competition_id: str,
+    payload: CompetitionSeedFakeData,
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    admin_service.populate_competition_fake_data(
+        db,
+        competition_id,
+        num_participants=payload.num_participants,
+        num_judges=payload.num_judges,
+        num_criteria=payload.num_criteria,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

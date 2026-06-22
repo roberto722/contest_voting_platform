@@ -407,3 +407,147 @@ def test_admin_can_patch_delete_and_get_404(client: TestClient) -> None:
 
     missing = client.get(f"/api/events/{event_id}")
     assert missing.status_code == 404
+
+
+def test_cannot_assign_judge_when_judge_voting_disabled(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    event_response = client.post("/api/events", json={"name": "Serata Live"})
+    event_id = event_response.json()["id"]
+
+    # Create competition with judge_voting_enabled=False
+    competition_response = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Contest senza giudici",
+            "judge_voting_enabled": False,
+        },
+    )
+    competition_id = competition_response.json()["id"]
+
+    # Create judge
+    judge_response = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge-no-vote", "display_name": "Giudice 1", "access_code": "secret"},
+    )
+    judge_id = judge_response.json()["id"]
+
+    # Attempt assignment -> should return 409
+    assignment_response = client.post(f"/api/competitions/{competition_id}/judges/{judge_id}")
+    assert assignment_response.status_code == 409
+    assert "judge voting is disabled" in assignment_response.json()["detail"]
+
+
+def test_judge_actions_during_live_and_draft(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    event_response = client.post("/api/events", json={"name": "Serata Live"})
+    event_id = event_response.json()["id"]
+
+    # Create competition with default setup (so it is ready)
+    competition_response = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={"name": "Contest", "judge_voting_enabled": False},
+    )
+    competition_id = competition_response.json()["id"]
+    client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "anna", "display_name": "Anna"},
+    )
+    client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "marco", "display_name": "Marco"},
+    )
+
+    # Create judges
+    j1 = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "j-1", "display_name": "Giudice 1", "access_code": "secret-1"},
+    ).json()
+    j2 = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "j-2", "display_name": "Giudice 2", "access_code": "secret-2"},
+    ).json()
+
+    # Before live (draft): both deleting and regenerating are allowed
+    # Delete judge 2
+    del_res = client.delete(f"/api/judges/{j2['id']}")
+    assert del_res.status_code == 204
+
+    # Go live
+    live_res = client.patch(f"/api/events/{event_id}", json={"status": "live"})
+    assert live_res.status_code == 200
+
+    # During live: deleting judge 1 is NOT allowed (returns 409)
+    del_live_res = client.delete(f"/api/judges/{j1['id']}")
+    assert del_live_res.status_code == 409
+    assert "event configuration is locked" in del_live_res.json()["detail"]
+
+    # During live: regenerating access code for judge 1 IS allowed (returns 200)
+    regen_res = client.post(f"/api/judges/{j1['id']}/access-code/regenerate")
+    assert regen_res.status_code == 200
+    assert regen_res.json()["access_code"] is not None
+
+
+def test_seed_competition_fake_data(client: TestClient, db_session: Session) -> None:
+    event_response = client.post("/api/events", json={"name": "Serata Live Demo"})
+    assert event_response.status_code == 201
+    event_id = event_response.json()["id"]
+
+    competition_response = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Miglior Performance Musicale",
+            "public_voting_enabled": True,
+            "judge_voting_enabled": True,
+            "public_vote_method": "criteria_rating",
+            "access_method": "public_link",
+            "public_weight": 50,
+            "judge_weight": 50,
+        },
+    )
+    assert competition_response.status_code == 201
+    competition_id = competition_response.json()["id"]
+
+    # Seed fake data with custom quantities
+    seed_res = client.post(
+        f"/api/competitions/{competition_id}/seed-fake-data",
+        json={"num_participants": 6, "num_judges": 4, "num_criteria": 2},
+    )
+    assert seed_res.status_code == 204
+
+    # Verify participants (should be 6 and contain first and last name)
+    parts_res = client.get(f"/api/competitions/{competition_id}/participants")
+    assert parts_res.status_code == 200
+    participants = parts_res.json()
+    assert len(participants) == 6
+    # Let's verify they have both first and last name
+    for part in participants:
+        assert " " in part["display_name"]
+
+    # Verify judge criteria (should be 2)
+    jc_res = client.get(f"/api/competitions/{competition_id}/judge-criteria")
+    assert jc_res.status_code == 200
+    assert len(jc_res.json()) == 2
+
+    # Verify public criteria (should be 2)
+    pc_res = client.get(f"/api/competitions/{competition_id}/public-criteria")
+    assert pc_res.status_code == 200
+    assert len(pc_res.json()) == 2
+
+    # Verify judges (should be 4)
+    judges_res = client.get(f"/api/events/{event_id}/judges")
+    assert judges_res.status_code == 200
+    assert len(judges_res.json()) == 4
+
+    # Verify seeding again fails (409 Conflict)
+    seed_again_res = client.post(
+        f"/api/competitions/{competition_id}/seed-fake-data",
+        json={},
+    )
+    assert seed_again_res.status_code == 409
+    assert "già dati" in seed_again_res.json()["detail"]
+
+

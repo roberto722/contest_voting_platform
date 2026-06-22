@@ -43,6 +43,7 @@ class Competition(IdMixin, TimestampMixin, Base):
     )
     access_pin_hash: Mapped[str | None] = mapped_column(String(255))
     max_votes_per_user: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    max_votes_per_competition: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     allow_vote_update: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[CompetitionStatus] = mapped_column(
         Enum(CompetitionStatus, native_enum=False, values_callable=enum_values),

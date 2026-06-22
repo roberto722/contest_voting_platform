@@ -1,7 +1,17 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import QRCode from "qrcode";
 
-import { publicVoteHref } from "./public-vote/publicVote";
+import { participantBackdrop, publicVoteHref } from "./public-vote/publicVote";
+import { podiumAssets, podiumDisplayOrder, podiumPercent } from "./screen/podium";
+import { GoldDustCanvas } from "./screen/GoldDustCanvas";
+import {
+  clampRevealCount,
+  nextRevealRank,
+  previousRevealCount,
+  revealTotal,
+  visibleRevealedResults,
+  type RevealMode,
+} from "./screen/reveal";
 import "./styles.css";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -50,6 +60,7 @@ type CompetitionRead = {
   judge_weight: number;
   access_method: AccessMethod;
   max_votes_per_user: number;
+  max_votes_per_competition: number;
   allow_vote_update: boolean;
   status: CompetitionStatus;
 };
@@ -366,6 +377,10 @@ export default function App() {
   const [deleteEventCandidate, setDeleteEventCandidate] = useState<EventRead | null>(null);
   const [deleteCompetitionCandidate, setDeleteCompetitionCandidate] = useState<CompetitionRead | null>(null);
   const [judgeCredentialNotice, setJudgeCredentialNotice] = useState<JudgeCredentialNotice | null>(null);
+  const [showSeedConfirm, setShowSeedConfirm] = useState<boolean>(false);
+  const [seedParticipantsCount, setSeedParticipantsCount] = useState<number>(4);
+  const [seedJudgesCount, setSeedJudgesCount] = useState<number>(3);
+  const [seedCriteriaCount, setSeedCriteriaCount] = useState<number>(3);
   const [auditFilters, setAuditFilters] = useState<AuditFilters>({
     query: "",
     actorType: "all",
@@ -375,10 +390,25 @@ export default function App() {
     page: 1,
   });
   const [message, setMessage] = useState("Pronto");
+  const [isRevealUpdating, setIsRevealUpdating] = useState(false);
   const selectedEvent = state.events.find((event) => event.id === selectedEventId);
   const selectedCompetition = state.competitions.find(
     (competition) => competition.id === selectedCompetitionId
   );
+  const revealMode =
+    state.screenState?.mode === "reveal_ranking" ||
+    state.screenState?.mode === "show_podium" ||
+    state.screenState?.mode === "show_final_winners"
+      ? (state.screenState.mode as RevealMode)
+      : null;
+  const revealMaximum = revealMode
+    ? revealTotal(revealMode, state.results?.results.length ?? 0)
+    : 0;
+  const revealedCount = clampRevealCount(
+    numberPayload(state.screenState, "reveal_upto", 0),
+    revealMaximum,
+  );
+  const upcomingRank = nextRevealRank(revealMaximum, revealedCount, revealMode);
   const openSession = state.sessions.find((session) => session.status === "open");
   const isEventLive = selectedEvent?.status === "live";
   const configurationLocked = Boolean(selectedEvent && selectedEvent.status !== "draft");
@@ -390,6 +420,16 @@ export default function App() {
       selectedCompetition.public_vote_method === "criteria_rating"
   );
   const judgeSetupRequired = Boolean(selectedCompetition?.judge_voting_enabled);
+  const hasAssignedJudges = state.judges.some(
+    (judge) => selectedCompetition && judge.assigned_competition_ids?.includes(selectedCompetition.id)
+  );
+  const isUnpopulated = Boolean(
+    selectedCompetition &&
+      state.participants.length === 0 &&
+      state.judgeCriteria.length === 0 &&
+      state.publicCriteria.length === 0 &&
+      !hasAssignedJudges
+  );
   const adminSteps: AdminStep[] = [
     { id: "event", label: "Evento", disabled: false },
     { id: "competition", label: "Competizione", disabled: !selectedEvent, reason: "Seleziona evento" },
@@ -414,8 +454,8 @@ export default function App() {
     {
       id: "judges",
       label: "Giudici",
-      disabled: !selectedEvent || configurationLocked,
-      reason: configurationLocked ? "Evento live: configurazione bloccata" : "Seleziona evento",
+      disabled: !selectedEvent,
+      reason: "Seleziona evento",
     },
     { id: "review", label: "Review", disabled: !selectedCompetition, reason: "Crea competizione" },
     { id: "live", label: "Live", disabled: !selectedCompetition || !setupReady, reason: "Completa setup" },
@@ -596,6 +636,7 @@ export default function App() {
         access_method: textValue(data, "access_method"),
         access_pin: textValue(data, "access_pin") || null,
         max_votes_per_user: numberValue(data, "max_votes_per_user", 1),
+        max_votes_per_competition: numberValue(data, "max_votes_per_competition", 1),
         allow_vote_update: data.get("allow_vote_update") === "on",
       }),
     });
@@ -630,6 +671,22 @@ export default function App() {
     if (nextCompetitionId) {
       await loadCompetitionData(nextCompetitionId);
     }
+  }
+
+  async function seedCompetitionFakeData(numParticipants: number, numJudges: number, numCriteria: number) {
+    if (!selectedCompetition) return;
+    await api(`/api/competitions/${selectedCompetition.id}/seed-fake-data`, {
+      method: "POST",
+      body: JSON.stringify({
+        num_participants: numParticipants,
+        num_judges: numJudges,
+        num_criteria: numCriteria,
+      }),
+    });
+    if (selectedEventId) {
+      await loadEventData(selectedEventId);
+    }
+    await loadCompetitionData(selectedCompetition.id);
   }
 
   async function createParticipant(form: HTMLFormElement) {
@@ -722,6 +779,11 @@ export default function App() {
     await refreshSelectedEvent();
   }
 
+  async function deleteJudge(judgeId: string) {
+    await api(`/api/judges/${judgeId}`, { method: "DELETE" });
+    await refreshSelectedEvent();
+  }
+
   async function openVoting(form: HTMLFormElement) {
     if (!selectedCompetitionId) return;
     const data = new FormData(form);
@@ -770,7 +832,7 @@ export default function App() {
   async function updateScreenState(form: HTMLFormElement) {
     if (!selectedEventId) return;
     const data = new FormData(form);
-    await api<ScreenStateRead>(`/api/events/${selectedEventId}/screen-state`, {
+    const screenState = await api<ScreenStateRead>(`/api/events/${selectedEventId}/screen-state`, {
       method: "PUT",
       body: JSON.stringify({
         competition_id: selectedCompetitionId || null,
@@ -787,11 +849,35 @@ export default function App() {
         },
       }),
     });
-    await refreshSelectedEvent();
+    setState((current) => ({ ...current, screenState }));
+  }
+
+  async function updateRevealCount(nextCount: number) {
+    if (!selectedEventId || !state.screenState || !revealMode) return;
+    setIsRevealUpdating(true);
+    try {
+      const screenState = await api<ScreenStateRead>(
+        `/api/events/${selectedEventId}/screen-state`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            competition_id: selectedCompetitionId || null,
+            mode: state.screenState.mode,
+            payload_json: {
+              ...state.screenState.payload_json,
+              reveal_upto: clampRevealCount(nextCount, revealMaximum),
+            },
+          }),
+        },
+      );
+      setState((current) => ({ ...current, screenState }));
+    } finally {
+      setIsRevealUpdating(false);
+    }
   }
 
   return (
-    <main className="admin-shell">
+    <main className={`admin-shell admin-shell-${view}`}>
       <header className="topbar">
         <div>
           <p className="eyebrow">Contest Voting Platform</p>
@@ -918,7 +1004,7 @@ export default function App() {
                       <option value="criteria_rating">Valutazione per criteri</option>
                     </select>
                   </label>
-                  <div className="inline-grid">
+                  <div className="inline-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
                     <label className="field-stack">
                       <span>Peso pubblico</span>
                       <input name="public_weight" type="number" defaultValue="50" min="0" />
@@ -927,9 +1013,21 @@ export default function App() {
                       <span>Peso giudici</span>
                       <input name="judge_weight" type="number" defaultValue="50" min="0" />
                     </label>
+                  </div>
+                  <div className="inline-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", marginTop: "8px" }}>
                     <label className="field-stack">
                       <span>Max voti per utente</span>
                       <input name="max_votes_per_user" type="number" defaultValue="1" min="1" />
+                      <span className="form-hint" style={{ fontWeight: "normal" }}>
+                        Candidati selezionabili in una singola scheda di voto (es. per metodo classifica).
+                      </span>
+                    </label>
+                    <label className="field-stack">
+                      <span>Max votazioni per competizione</span>
+                      <input name="max_votes_per_competition" type="number" defaultValue="1" min="1" />
+                      <span className="form-hint" style={{ fontWeight: "normal" }}>
+                        Numero massimo di volte (round/sessioni) in cui lo stesso utente può votare per questa competizione.
+                      </span>
                     </label>
                   </div>
                   <div className="inline-grid">
@@ -1007,6 +1105,10 @@ export default function App() {
                       <Metric
                         label="Max voti per utente"
                         value={selectedCompetition.max_votes_per_user}
+                      />
+                      <Metric
+                        label="Max votazioni per competizione"
+                        value={selectedCompetition.max_votes_per_competition}
                       />
                       <Metric
                         label="Aggiornamento voto"
@@ -1153,6 +1255,7 @@ export default function App() {
                       <Metric label="Giudice" value={judgeCredentialNotice.displayName} />
                       <Metric label="ID tecnico" value={judgeCredentialNotice.judgeId} />
                       <Metric label="Codice accesso" value={judgeCredentialNotice.accessCode} />
+                      <Metric label="Link di login" value={`${window.location.origin}/judge`} />
                     </div>
                   </div>
                 ) : null}
@@ -1173,13 +1276,24 @@ export default function App() {
                             const isAssigned = judge.assigned_competition_ids.includes(competition.id);
                             return (
                               <label
-                                className={isAssigned ? "assignment-chip selected" : "assignment-chip"}
+                                className={
+                                  !competition.judge_voting_enabled
+                                    ? "assignment-chip disabled-chip"
+                                    : isAssigned
+                                      ? "assignment-chip selected"
+                                      : "assignment-chip"
+                                }
+                                title={
+                                  !competition.judge_voting_enabled
+                                    ? "Il voto dei giudici è disabilitato per questa competizione"
+                                    : undefined
+                                }
                                 key={competition.id}
                               >
                                 <input
                                   checked={isAssigned}
                                   type="checkbox"
-                                  disabled={configurationLocked}
+                                  disabled={configurationLocked || !competition.judge_voting_enabled}
                                   onChange={() =>
                                     run(
                                       () => toggleJudgeCompetition(judge.id, competition.id, isAssigned),
@@ -1189,7 +1303,10 @@ export default function App() {
                                     )
                                   }
                                 />
-                                <span>{competition.name}</span>
+                                <span>
+                                  {competition.name}
+                                  {!competition.judge_voting_enabled && " (no voto giudici)"}
+                                </span>
                               </label>
                             );
                           })
@@ -1200,7 +1317,6 @@ export default function App() {
                       <div className="judge-actions">
                         <button
                           className="secondary-button"
-                          disabled={configurationLocked}
                           type="button"
                           onClick={() =>
                             run(
@@ -1210,6 +1326,19 @@ export default function App() {
                           }
                         >
                           Rigenera codice
+                        </button>
+                        <button
+                          className="danger-button"
+                          disabled={configurationLocked}
+                          type="button"
+                          onClick={() =>
+                            run(
+                              () => deleteJudge(judge.id),
+                              "Giudice eliminato"
+                            )
+                          }
+                        >
+                          Elimina
                         </button>
                       </div>
                     </div>
@@ -1243,6 +1372,19 @@ export default function App() {
                     ))}
                   </ul>
                 ) : null}
+                {isUnpopulated && selectedEvent?.status === "draft" && (
+                  <div className="setup-success" style={{ marginTop: "1.2rem", backgroundColor: "rgba(22, 38, 56, 0.05)", borderColor: "#c7d0d9", color: "#162638" }}>
+                    <p style={{ marginBottom: "10px", fontWeight: "normal" }}>
+                      La competizione è vuota. Puoi popolarla rapidamente con partecipanti, criteri e giudici di prova coerenti con la configurazione scelta.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowSeedConfirm(true)}
+                    >
+                      Popola con Dati Fake
+                    </button>
+                  </div>
+                )}
               </Panel>
               ) : null}
 
@@ -1378,31 +1520,56 @@ export default function App() {
                     defaultValue={String(state.screenState?.payload_json.reveal_upto ?? "0")}
                   />
                 </Form>
-                {state.screenState?.mode === "reveal_ranking" && (
+                {revealMode ? (
                   <div className="reveal-controls">
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      onClick={() => {
-                        const current = numberPayload(state.screenState, "reveal_upto", 0);
-                        const total = state.results?.results.length ?? 0;
-                        if (current >= total) return;
-                        
-                        // Trova il form dello schermo per inviare i dati aggiornati
-                        const form = document.querySelector(".screen-admin form") as HTMLFormElement;
-                        if (form) {
-                          const input = form.querySelector("input[name='reveal_upto']") as HTMLInputElement;
-                          if (input) {
-                            input.value = String(current + 1);
-                            form.requestSubmit();
-                          }
+                    <p>
+                      Rivelate {revealedCount} di {revealMaximum}
+                      {upcomingRank
+                        ? ` — prossima: posizione ${upcomingRank}`
+                        : " — sequenza completata"}
+                    </p>
+                    <div className="button-strip">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={isRevealUpdating || revealedCount === 0}
+                        onClick={() =>
+                          run(() => updateRevealCount(0), "Rivelazione azzerata")
                         }
-                      }}
-                    >
-                      Svela prossima posizione ({numberPayload(state.screenState, "reveal_upto", 0)} / {state.results?.results.length ?? 0})
-                    </button>
+                      >
+                        Azzera
+                      </button>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={isRevealUpdating || revealedCount === 0}
+                        onClick={() =>
+                          run(
+                            () =>
+                              updateRevealCount(
+                                previousRevealCount(revealedCount, revealMaximum),
+                              ),
+                            "Posizione nascosta",
+                          )
+                        }
+                      >
+                        Indietro
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isRevealUpdating || revealedCount >= revealMaximum}
+                        onClick={() =>
+                          run(
+                            () => updateRevealCount(revealedCount + 1),
+                            "Posizione rivelata",
+                          )
+                        }
+                      >
+                        Rivela prossima
+                      </button>
+                    </div>
                   </div>
-                )}
+                ) : null}
                 <div className="metrics">
                   <Metric label="Modalita" value={screenModeLabel(state.screenState?.mode ?? "idle")} />
                   <Metric label="Competizione" value={selectedCompetition.name} />
@@ -1644,8 +1811,168 @@ export default function App() {
           </section>
         </div>
       ) : null}
+      {showSeedConfirm ? (
+        <div className="modal-backdrop" role="presentation">
+          <section aria-modal="true" className="confirm-modal" role="dialog" style={{ maxWidth: "450px" }}>
+            <h2>Popola con Dati Fake</h2>
+            <p style={{ marginBottom: "15px", fontSize: "0.9rem", opacity: 0.8 }}>
+              Imposta le quantità di dati fittizi da generare per questa competizione. I partecipanti avranno nomi e cognomi completi (es. Sofia Ferrari).
+            </p>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "20px", textAlign: "left" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Numero di Partecipanti (1-100):</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={seedParticipantsCount}
+                  onChange={(e) => setSeedParticipantsCount(Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #c7d0d9", background: "white", color: "black" }}
+                />
+              </div>
+
+              {selectedCompetition?.judge_voting_enabled && (
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Numero di Giudici da assegnare (1-50):</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={seedJudgesCount}
+                      onChange={(e) => setSeedJudgesCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #c7d0d9", background: "white", color: "black" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Numero di Criteri Giudici (1-20):</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={seedCriteriaCount}
+                      onChange={(e) => setSeedCriteriaCount(Math.min(20, Math.max(1, parseInt(e.target.value) || 1)))}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #c7d0d9", background: "white", color: "black" }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedCompetition?.public_voting_enabled && selectedCompetition.public_vote_method === "criteria_rating" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Numero di Criteri Pubblici (1-20):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={seedCriteriaCount}
+                    onChange={(e) => setSeedCriteriaCount(Math.min(20, Math.max(1, parseInt(e.target.value) || 1)))}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #c7d0d9", background: "white", color: "black" }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <p style={{ fontSize: "0.8rem", color: "#666", marginBottom: "15px" }}>
+              <strong>Nota:</strong> Questa operazione è possibile solo perché la competizione è vuota.
+            </p>
+
+            <div className="button-strip">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setShowSeedConfirm(false)}
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSeedConfirm(false);
+                  void run(
+                    () => seedCompetitionFakeData(seedParticipantsCount, seedJudgesCount, seedCriteriaCount),
+                    "Competizione popolata con dati fake"
+                  );
+                }}
+              >
+                Conferma e Popola
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
+}
+
+function StatusCapsules({
+  mode,
+  isFrozen,
+  isOpen,
+  lastUpdated,
+}: {
+  mode: string;
+  isFrozen: boolean;
+  isOpen: boolean;
+  lastUpdated?: string;
+}) {
+  return (
+    <div className="stage-status-capsules">
+      {isOpen ? (
+        <span className="capsule capsule-voting">
+          <img src="/quasanremo/schermo/live_signal.png" alt="" />
+          Votazione in corso
+        </span>
+      ) : (
+        <span className="capsule capsule-closed">
+          <img src="/quasanremo/schermo/lock_gold.png" alt="" />
+          Votazione chiusa
+        </span>
+      )}
+
+      {isFrozen ? (
+        <span className="capsule capsule-official">
+          <img src="/quasanremo/schermo/official_results.png" alt="" />
+          Risultati ufficiali
+        </span>
+      ) : (
+        <span className="capsule capsule-live">
+          <span className="live-dot"></span>
+          Aggiornamento live
+        </span>
+      )}
+
+      {lastUpdated ? (
+        <span className="capsule capsule-time">
+          <img src="/quasanremo/schermo/clock_gold.png" alt="" />
+          Ultimo aggiornamento {lastUpdated}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function WreathBadge({ rank }: { rank: number }) {
+  if (rank >= 1 && rank <= 6) {
+    return (
+      <img
+        src={`/quasanremo/schermo/rank_badge_${rank}.png`}
+        className={`rank-badge-img rank-badge-${rank}`}
+        alt={`Posizione ${rank}`}
+      />
+    );
+  }
+
+  return <span className="rank-text">{rank}</span>;
+}
+
+function getMockTrend(id: string) {
+  const hash = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const mod = hash % 3;
+  if (mod === 0) return { dir: "up" as const, val: "+1" };
+  if (mod === 1) return { dir: "down" as const, val: "-1" };
+  return { dir: "neutral" as const, val: "—" };
 }
 
 function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
@@ -1655,6 +1982,8 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
   });
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState("");
+
   const openSession = state.sessions.find((session) => session.status === "open");
   const title =
     textPayload(state.screenState, "title") ||
@@ -1664,13 +1993,55 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
     textPayload(state.screenState, "public_vote_url") || `${window.location.origin} - ID ${state.competition?.id ?? ""}`;
   const countdownSeconds = numberPayload(state.screenState, "countdown_seconds", 0);
   const allRanking = state.results?.results ?? [];
-  const revealUpto = numberPayload(state.screenState, "reveal_upto", 0);
+  const screenRevealMode =
+    state.screenState?.mode === "reveal_ranking" ||
+    state.screenState?.mode === "show_podium" ||
+    state.screenState?.mode === "show_final_winners"
+      ? (state.screenState.mode as RevealMode)
+      : null;
+  const screenRevealCount = numberPayload(state.screenState, "reveal_upto", 0);
   const ranking =
-    state.screenState?.mode === "reveal_ranking" && revealUpto > 0
-      ? allRanking.slice(-revealUpto)
+    screenRevealMode === "reveal_ranking"
+      ? visibleRevealedResults(allRanking, screenRevealMode, screenRevealCount)
       : allRanking;
-  const podium = allRanking.slice(0, 3);
+  const podiumMode =
+    state.screenState?.mode === "show_podium" ||
+    state.screenState?.mode === "show_final_winners";
+  const visiblePodium =
+    screenRevealMode === "show_podium" || screenRevealMode === "show_final_winners"
+      ? visibleRevealedResults(allRanking, screenRevealMode, screenRevealCount)
+      : allRanking.slice(0, 3);
+  const totalFinalScore = allRanking.reduce((total, result) => total + result.final_score, 0);
   const maxScore = Math.max(...allRanking.map((result) => result.final_score), 1);
+
+  let headingTitle = textPayload(state.screenState, "title");
+  let headingSubtitle = textPayload(state.screenState, "subtitle");
+
+  if (!headingTitle) {
+    const mode = state.screenState?.mode;
+    if (mode === "show_podium" || mode === "show_final_winners") {
+      headingTitle = "Podio finale";
+    } else if (mode === "show_qr") {
+      headingTitle = "Inquadra e Vota";
+    } else if (mode === "voting_open" || mode === "countdown") {
+      headingTitle = "Votazioni Aperte";
+    } else {
+      headingTitle = state.competition?.status === "results_frozen" ? "Classifica finale" : "Classifica progressiva";
+    }
+  }
+
+  if (!headingSubtitle) {
+    const mode = state.screenState?.mode;
+    if (mode === "show_podium" || mode === "show_final_winners") {
+      headingSubtitle = "";
+    } else if (mode === "show_qr") {
+      headingSubtitle = "Partecipa alla votazione pubblica";
+    } else if (mode === "voting_open" || mode === "countdown") {
+      headingSubtitle = "Sostieni i tuoi preferiti in tempo reale";
+    } else {
+      headingSubtitle = state.competition?.status === "results_frozen" ? "Risultati ufficiali della competizione" : "Aggiornamento live della serata";
+    }
+  }
 
   async function run(action: () => Promise<void>, doneMessage: string) {
     try {
@@ -1767,94 +2138,218 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
     }
   }, [state.screenState?.mode, state.screenState?.payload_json]);
 
+  useEffect(() => {
+    if (state.screenState) {
+      setLastUpdatedTime(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
+    }
+  }, [state.screenState, state.results, state.summary]);
+
   return (
-    <section className="screen-shell">
-      <Panel title="Connessione schermo">
-        <div className="public-access">
-          <input
-            value={state.eventId}
-            onChange={(event) => setState((current) => ({ ...current, eventId: event.target.value }))}
-            placeholder="ID evento"
-          />
-          <button type="button" onClick={() => run(connectScreen, "Schermo collegato")}>
-            Collega
-          </button>
-        </div>
-      </Panel>
+    <section className={`screen-shell ${state.activeEventId ? "screen-shell-connected" : ""}`}>
+      {!state.activeEventId ? (
+        <Panel title="Connessione schermo">
+          <div className="public-access">
+            <input
+              value={state.eventId}
+              onChange={(event) => setState((current) => ({ ...current, eventId: event.target.value }))}
+              placeholder="ID evento"
+            />
+            <button type="button" onClick={() => run(connectScreen, "Schermo collegato")}>
+              Collega
+            </button>
+          </div>
+        </Panel>
+      ) : null}
 
       <section className={`stage stage-${state.screenState?.mode ?? "idle"}`}>
-        <div className="stage-status">
-          <span>{state.connected ? "live" : "offline"}</span>
-          <span>{screenModeLabel(state.screenState?.mode ?? "idle")}</span>
-          {state.competition?.status === "results_frozen" && <span>Ufficiale</span>}
+        {(state.screenState?.mode === "show_podium" || state.screenState?.mode === "show_final_winners") ? (
+          <GoldDustCanvas />
+        ) : null}
+        <div className="stage-decor-frame" />
+
+        <div className="stage-header">
+          <div className="stage-brand">
+            <img src="/quasanremo/brand/quasanremo_logo.png" className="stage-brand-logo" alt="Logo" />
+            <img src="/quasanremo/brand/logo-rectangular-transparent.png" className="stage-brand-wordmark" alt="Quasanremo International" />
+          </div>
+          <div className="stage-header-center">
+            <svg viewBox="0 0 24 24" className="stage-center-star" aria-hidden="true">
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+            </svg>
+          </div>
+          {!podiumMode ? (
+            <StatusCapsules
+              mode={state.screenState?.mode ?? "idle"}
+              isFrozen={state.competition?.status === "results_frozen"}
+              isOpen={Boolean(openSession)}
+              lastUpdated={lastUpdatedTime}
+            />
+          ) : null}
         </div>
+
         <div className="stage-heading">
-          <p>{state.competition?.name ?? "Nessuna competizione selezionata"}</p>
-          <h2>{title}</h2>
+          <p>{headingSubtitle}</p>
+          <h2>{headingTitle}</h2>
         </div>
 
-        {state.screenState?.mode === "show_qr" ? (
-          <div className="qr-layout">
-            <div className="qr-code" aria-label="QR code">
-              {qrCodeDataUrl ? <img alt="QR code voto pubblico" src={qrCodeDataUrl} /> : null}
-            </div>
-            <div>
-              <h3>Vota ora</h3>
-              <p>{voteUrl}</p>
-              <strong>{state.competition?.id ?? ""}</strong>
-            </div>
-          </div>
-        ) : null}
-
-        {state.screenState?.mode === "voting_open" || state.screenState?.mode === "countdown" ? (
-          <div className="live-vote">
-            <div>
-              <span>Voti ricevuti</span>
-              <strong>{state.summary?.total_votes ?? 0}</strong>
-            </div>
-            <div>
-              <span>Sessione</span>
-              <strong>{openSession ? "aperta" : "chiusa"}</strong>
-            </div>
-            {state.screenState?.mode === "countdown" ? (
+        <div className="stage-content">
+          {state.screenState?.mode === "show_qr" ? (
+            <div className="qr-layout">
+              <div className="qr-code" aria-label="QR code">
+                {qrCodeDataUrl ? <img alt="QR code voto pubblico" src={qrCodeDataUrl} /> : null}
+              </div>
               <div>
-                <span>Countdown</span>
-                <strong>{remainingSeconds ?? countdownSeconds}s</strong>
+                <h3>Vota ora</h3>
+                <p>{voteUrl}</p>
+                <strong>{state.competition?.id ?? ""}</strong>
               </div>
-            ) : null}
-          </div>
-        ) : null}
+            </div>
+          ) : null}
 
-        {state.screenState?.mode === "show_results" || state.screenState?.mode === "reveal_ranking" ? (
-          <ol className="stage-ranking">
-            {ranking.map((result) => (
-              <li key={result.participant_id}>
-                <span>{result.rank}</span>
-                <strong>{result.display_name}</strong>
+          {state.screenState?.mode === "voting_open" || state.screenState?.mode === "countdown" ? (
+            <div className="live-vote">
+              <div>
+                <span>Voti ricevuti</span>
+                <strong>{state.summary?.total_votes ?? 0}</strong>
+              </div>
+              <div>
+                <span>Sessione</span>
+                <strong>{openSession ? "aperta" : "chiusa"}</strong>
+              </div>
+              {state.screenState?.mode === "countdown" ? (
                 <div>
-                  <i style={{ width: `${Math.max(8, (result.final_score / maxScore) * 100)}%` }} />
+                  <span>Countdown</span>
+                  <strong>{remainingSeconds ?? countdownSeconds}s</strong>
                 </div>
-                <em>{result.final_score.toFixed(1)}</em>
-              </li>
-            ))}
-          </ol>
-        ) : null}
+              ) : null}
+            </div>
+          ) : null}
 
-        {state.screenState?.mode === "show_podium" || state.screenState?.mode === "show_final_winners" ? (
-          <div className="podium">
-            {podium.map((result) => (
-              <div className={`podium-place podium-${result.rank}`} key={result.participant_id}>
-                <span>#{result.rank}</span>
-                <strong>{result.display_name}</strong>
-                <em>{result.final_score.toFixed(1)}</em>
-              </div>
-            ))}
-          </div>
-        ) : null}
+          {(state.screenState?.mode === "show_results" || state.screenState?.mode === "reveal_ranking") ? (
+            ranking.length === 0 ? (
+              <div className="stage-idle">In attesa della prossima posizione.</div>
+            ) : (
+              <ol className="stage-ranking">
+              {ranking.map((result, idx) => {
+                const trend = getMockTrend(result.participant_id);
+                const totalFinalScore = allRanking.reduce((acc, r) => acc + r.final_score, 0) || 1;
+                const percent = ((result.final_score / totalFinalScore) * 100).toFixed(2).replace('.', ',');
+                const votes = result.public_score.raw_score || Math.round(result.final_score * 3.5);
 
-        {state.screenState?.mode === "idle" || !state.screenState ? (
-          <div className="stage-idle">In attesa del comando admin.</div>
-        ) : null}
+                return (
+                  <li key={result.participant_id} className={`rank-item-${result.rank}`}>
+                    <div className="rank-position-col">
+                      <WreathBadge rank={result.rank} />
+                      <div className={`trend-indicator trend-${trend.dir}`}>
+                        {trend.dir === "up" && <img src="/quasanremo/schermo/trend_up_plus_1.png" className="trend-icon" alt="+1" />}
+                        {trend.dir === "down" && <img src="/quasanremo/schermo/trend_down_minus_1.png" className="trend-icon" alt="-1" />}
+                        {trend.dir === "neutral" && <img src="/quasanremo/schermo/rank_stable.png" className="trend-icon" alt="stabile" />}
+                      </div>
+                    </div>
+                    <div
+                      className="rank-avatar"
+                      style={{ backgroundImage: `url(/quasanremo/artists/artist-bg-0${(idx % 5) + 1}.webp)` }}
+                    />
+                    <strong className="rank-name">{result.display_name}</strong>
+                    <div className="rank-progress-col">
+                      <div className="rank-votes-bar">
+                        <i
+                          className="rank-progress-fill"
+                          style={{ width: `${Math.max(8, (result.final_score / maxScore) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="rank-votes-count">{votes.toLocaleString("it-IT")} Voti</span>
+                    <span className="rank-percent">{percent}%</span>
+                  </li>
+                );
+              })}
+              </ol>
+            )
+          ) : null}
+
+          {(state.screenState?.mode === "show_podium" || state.screenState?.mode === "show_final_winners") ? (
+            <div className="podium-section">
+              {visiblePodium.length ? (
+                <div className="podium">
+                  {[2, 1, 3].map((rank) => {
+                    const result = visiblePodium.find((r) => r.rank === rank);
+                    if (!result) return null;
+
+                    const index = allRanking.findIndex(
+                      (entry) => entry.participant_id === result.participant_id,
+                    );
+                    const assets = podiumAssets(result.rank);
+
+                    return (
+                      <article className={`podium-place podium-${result.rank}`} key={result.participant_id}>
+                        <div className="podium-portrait">
+                          <div
+                            className="podium-card-artist-bg"
+                            style={{ backgroundImage: `url(${participantBackdrop(index)})` }}
+                          />
+                          <div className="podium-card-shade" />
+                          <img className="podium-panel-asset" src={assets.panel} alt="" />
+                          <div className="podium-card-content">
+                            <strong className="podium-name" title={result.display_name}>
+                              {result.display_name}
+                            </strong>
+                            <span className="podium-score-capsule">
+                              {podiumPercent(result.final_score, totalFinalScore)}%
+                            </span>
+                          </div>
+                        </div>
+                        <img className="podium-base-asset" src={assets.base} alt="" />
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="podium-empty">In attesa della prossima posizione.</div>
+              )}
+
+              {allRanking.length > 3 ? (
+                <div className="podium-runners-up">
+                  {[4, 5].map((rank) => {
+                    const result = allRanking.find((r) => r.rank === rank);
+                    if (!result) return null;
+
+                    const isRevealed = visiblePodium.some((r) => r.participant_id === result.participant_id);
+                    const indexInAll = allRanking.findIndex((r) => r.participant_id === result.participant_id);
+
+                    return (
+                      <article
+                        key={result.participant_id}
+                        className="runner-up-item"
+                        style={{ visibility: isRevealed ? "visible" : "hidden" }}
+                      >
+                        <span className="runner-up-rank">{result.rank}</span>
+                        <span
+                          className="runner-up-avatar"
+                          style={{ backgroundImage: `url(${participantBackdrop(indexInAll)})` }}
+                        />
+                        <span className="runner-up-name" title={result.display_name}>
+                          {result.display_name}
+                        </span>
+                        <span className="runner-up-score">
+                          {podiumPercent(result.final_score, totalFinalScore)}%
+                        </span>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <p className="podium-footer">
+                ☆ Grazie a tutti i partecipanti e al pubblico che ha reso possibile questa edizione. ☆
+              </p>
+            </div>
+          ) : null}
+
+          {(state.screenState?.mode === "idle" || !state.screenState) ? (
+            <div className="stage-idle">In attesa del comando admin.</div>
+          ) : null}
+        </div>
       </section>
     </section>
   );
@@ -2010,42 +2505,31 @@ function JudgeArea({ setMessage }: { setMessage: (message: string) => void }) {
 
       {state.access ? (
         <Panel title={state.access.display_name}>
-          <div className="judge-layout">
-            <div>
-              <h2>Competizioni assegnate</h2>
-              <List>
-                {state.access.competitions.length ? (
-                  state.access.competitions.map((competition) => {
-                    const status = state.competitionStatuses[competition.id];
-                    return (
-                      <button
-                        className={competition.id === state.selectedCompetitionId ? "row active" : "row"}
-                        key={competition.id}
-                        type="button"
-                        onClick={() => run(() => loadJudgeCompetition(competition.id), "Competizione caricata")}
-                      >
-                        <span>
-                          <strong>{competition.name}</strong>
-                          <small>{formatJudgeCompetitionProgress(status)}</small>
-                        </span>
-                        <Badge>{competition.status}</Badge>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <p className="empty">Nessuna competizione assegnata.</p>
-                )}
-              </List>
-            </div>
-            <div>
-              <button
-                type="button"
-                disabled={!state.selectedCompetitionId}
-                onClick={() => run(() => loadJudgeCompetition(), "Stato giudice aggiornato")}
-              >
-                Carica voto
-              </button>
-            </div>
+          <div>
+            <h2>Competizioni assegnate</h2>
+            <List>
+              {state.access.competitions.length ? (
+                state.access.competitions.map((competition) => {
+                  const status = state.competitionStatuses[competition.id];
+                  return (
+                    <button
+                      className={competition.id === state.selectedCompetitionId ? "row active" : "row"}
+                      key={competition.id}
+                      type="button"
+                      onClick={() => run(() => loadJudgeCompetition(competition.id), "Competizione caricata")}
+                    >
+                      <span>
+                        <strong>{competition.name}</strong>
+                        <small>{formatJudgeCompetitionProgress(status)}</small>
+                      </span>
+                      <Badge>{competition.status}</Badge>
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="empty">Nessuna competizione assegnata.</p>
+              )}
+            </List>
           </div>
         </Panel>
       ) : null}
@@ -2105,6 +2589,16 @@ function JudgeArea({ setMessage }: { setMessage: (message: string) => void }) {
                   }))
                 }
               />
+              {isVoteDirty(
+                state.selectedParticipantId,
+                state.savedVotes,
+                state.criteriaScores,
+                state.judgeCriteria
+              ) ? (
+                <div className="closed-state" style={{ margin: "12px 0", borderStyle: "dashed" }}>
+                  ⚠️ Attenzione: le modifiche o i voti inseriti per questo partecipante non sono ancora validi. Clicca su &quot;Salva voto partecipante&quot; per caricarli.
+                </div>
+              ) : null}
               <button type="button" onClick={() => run(submitJudgeVote, "Voto giudice inviato")}>
                 Salva voto partecipante
               </button>
@@ -2191,6 +2685,26 @@ function judgeScoresForParticipant(
       savedScores[criterion.id] ?? criterion.min_score,
     ])
   );
+}
+
+function isVoteDirty(
+  selectedParticipantId: string,
+  savedVotes: Record<string, SavedJudgeVote>,
+  criteriaScores: Record<string, number>,
+  judgeCriteria: CriterionRead[]
+): boolean {
+  const saved = savedVotes[selectedParticipantId];
+  if (!saved) {
+    return true;
+  }
+  for (const criterion of judgeCriteria) {
+    const currentScore = criteriaScores[criterion.id] ?? criterion.min_score;
+    const savedScore = saved.scores[criterion.id];
+    if (savedScore === undefined || currentScore !== savedScore) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function formatJudgeCompetitionProgress(status: JudgeVoteStatusRead | undefined): string {

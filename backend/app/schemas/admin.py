@@ -43,6 +43,7 @@ class CompetitionCreate(BaseModel):
     access_method: AccessMethod = AccessMethod.PUBLIC_LINK
     access_pin: str | None = None
     max_votes_per_user: int = 1
+    max_votes_per_competition: int = 1
     allow_vote_update: bool = False
 
 
@@ -58,6 +59,7 @@ class CompetitionUpdate(BaseModel):
     access_method: AccessMethod | None = None
     access_pin: str | None = None
     max_votes_per_user: int | None = None
+    max_votes_per_competition: int | None = None
     allow_vote_update: bool | None = None
 
 
@@ -76,6 +78,7 @@ class CompetitionRead(BaseModel):
     judge_weight: float
     access_method: AccessMethod
     max_votes_per_user: int
+    max_votes_per_competition: int
     allow_vote_update: bool
     status: CompetitionStatus
 
@@ -226,3 +229,9 @@ class VotingSessionRead(BaseModel):
     closed_at: datetime | None
     opened_by_admin_id: str | None
     closed_by_admin_id: str | None
+
+
+class CompetitionSeedFakeData(BaseModel):
+    num_participants: int = Field(default=4, ge=1, le=100)
+    num_judges: int = Field(default=3, ge=1, le=50)
+    num_criteria: int = Field(default=3, ge=1, le=20)
