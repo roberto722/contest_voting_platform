@@ -12,16 +12,59 @@ export type VoteSelection = {
   ratings: Rating[];
 };
 
+export type VoterSession = {
+  voterAccountId: string;
+  accessToken: string;
+  displayName: string;
+  eventId: string;
+};
+
+const NS = "cvp-voter";
+const KEYS = {
+  accountId: `${NS}-account-id`,
+  accessToken: `${NS}-access-token`,
+  displayName: `${NS}-display-name`,
+  eventId: `${NS}-event-id`,
+} as const;
+
+export function saveVoterSession(session: VoterSession): void {
+  localStorage.setItem(KEYS.accountId, session.voterAccountId);
+  localStorage.setItem(KEYS.accessToken, session.accessToken);
+  localStorage.setItem(KEYS.displayName, session.displayName);
+  localStorage.setItem(KEYS.eventId, session.eventId);
+}
+
+export function loadVoterSession(): VoterSession | null {
+  const voterAccountId = localStorage.getItem(KEYS.accountId);
+  const accessToken = localStorage.getItem(KEYS.accessToken);
+  const displayName = localStorage.getItem(KEYS.displayName);
+  const eventId = localStorage.getItem(KEYS.eventId);
+  if (!voterAccountId || !accessToken || !displayName || !eventId) return null;
+  return { voterAccountId, accessToken, displayName, eventId };
+}
+
+export function clearVoterSession(): void {
+  Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+}
+
+export function voterAuthHeaders(session: VoterSession): Record<string, string> {
+  return {
+    "X-Voter-Account-Id": session.voterAccountId,
+    "X-Voter-Access-Token": session.accessToken,
+  };
+}
+
 export function isPublicVotePath(pathname: string): boolean {
   return pathname === "/vote" || pathname === "/vote/";
 }
 
+// Kept for backward compat (used by App.tsx screen area)
 export function publicVoteHref(competitionId: string): string {
   return `/vote?competitionId=${encodeURIComponent(competitionId)}`;
 }
 
 export function getVotingState(sessions: Array<{ status: string }>): VotingState {
-  if (sessions.some((session) => session.status === "open")) return "open";
+  if (sessions.some((s) => s.status === "open")) return "open";
   return sessions.length ? "closed" : "waiting";
 }
 
@@ -30,27 +73,18 @@ export function participantBackdrop(index: number): string {
   return `/quasanremo/artists/artist-bg-${assetNumber}.webp`;
 }
 
-export function buildPublicVotePayload(
-  voterToken: string,
-  method: PublicVoteMethod,
-  selection: VoteSelection,
-) {
+/**
+ * Builds the vote payload for the backend — no voter_token, auth goes in headers.
+ */
+export function buildVotePayload(method: PublicVoteMethod, selection: VoteSelection) {
   if (method === "single_choice") {
-    return {
-      voter_token: voterToken,
-      method,
-      participant_id: selection.participantId,
-    };
+    return { method, participant_id: selection.participantId };
   }
   if (method === "ranked_choice") {
-    return {
-      voter_token: voterToken,
-      method,
-      ranked_participant_ids: selection.rankedParticipantIds.filter(Boolean),
-    };
+    return { method, ranked_participant_ids: selection.rankedParticipantIds.filter(Boolean) };
   }
+  // criteria_rating
   return {
-    voter_token: voterToken,
     method,
     ratings: [{ participant_id: selection.participantId, criteria: selection.ratings }],
   };
