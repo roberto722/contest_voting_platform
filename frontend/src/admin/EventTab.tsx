@@ -41,7 +41,12 @@ export function EventTab({
               onClick={() => onSelect(event.id)}
               type="button"
             >
-              <span>{event.name}</span>
+              <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <span className="event-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.name}</span>
+                <span className="event-id-subtext" style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: "2px", fontFamily: "monospace" }}>
+                  ID: {event.id.substring(0, 8)}...
+                </span>
+              </span>
               <Badge>{eventStatusLabels[event.status] || event.status}</Badge>
             </button>
             <button

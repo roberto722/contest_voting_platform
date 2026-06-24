@@ -898,8 +898,54 @@ export default function App() {
                   <Metric label="Configurazione" value={setupReady ? "completa" : "incompleta"} />
                   <Metric label="Live" value={isEventLive ? "abilitato" : "non abilitato"} />
                 </div>
+
+                {selectedEvent && (
+                  <div className="event-id-box" style={{
+                    marginTop: "20px",
+                    padding: "16px",
+                    background: "rgba(214, 157, 67, 0.06)",
+                    border: "1px solid rgba(214, 157, 67, 0.15)",
+                    borderRadius: "8px",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+                      <div style={{ flex: "1 1 300px" }}>
+                        <span style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.5px", opacity: 0.7, display: "block", marginBottom: "4px" }}>
+                          ID Evento (UUID)
+                        </span>
+                        <code style={{ fontSize: "0.95rem", color: "#d69d43", wordBreak: "break-all", fontFamily: "monospace" }}>
+                          {selectedEvent.id}
+                        </code>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                          onClick={() => {
+                            void navigator.clipboard.writeText(selectedEvent.id);
+                            setMessage("ID Evento copiato negli appunti!");
+                          }}
+                        >
+                          Copia ID
+                        </button>
+                        <button
+                          type="button"
+                          style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                          onClick={() => {
+                            const voteUrl = `${window.location.origin}/vote?eventId=${selectedEvent.id}`;
+                            void navigator.clipboard.writeText(voteUrl);
+                            setMessage("Link voto pubblico copiato!");
+                          }}
+                        >
+                          Copia Link Voto
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {selectedEvent?.status === "draft" ? (
-                  <div className="button-strip">
+                  <div className="button-strip" style={{ marginTop: "20px" }}>
                     <button
                       type="button"
                       disabled={!setupReady}
@@ -909,7 +955,7 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <p className="lock-note">Evento live o chiuso: setup bloccato, gestione live attiva.</p>
+                  <p className="lock-note" style={{ marginTop: "20px" }}>Evento live o chiuso: setup bloccato, gestione live attiva.</p>
                 )}
               </Panel>
               ) : null}
