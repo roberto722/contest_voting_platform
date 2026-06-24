@@ -11,11 +11,12 @@ from app.api.routes.judge_votes import router as judge_votes_router
 from app.api.routes.judges import router as judges_router
 from app.api.routes.participants import router as participants_router
 from app.api.routes.public_votes import router as public_votes_router
+from app.api.routes.voter_accounts import router as voter_accounts_router
 from app.api.routes.results import router as results_router
 from app.api.routes.screen import router as screen_router
 from app.api.routes.voting_sessions import router as voting_sessions_router
 from app.config import get_settings
-from app.services.access_service import JudgeAccessError, PublicAccessError
+from app.services.access_service import JudgeAccessError, PublicAccessError, VoterAccessError
 from app.services.admin_service import AdminStateError, ResourceNotFound
 from app.services.judge_vote_service import JudgeVoteError
 from app.services.public_vote_service import PublicVoteError
@@ -96,6 +97,13 @@ def create_app() -> FastAPI:
     ) -> JSONResponse:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
+    @app.exception_handler(VoterAccessError)
+    async def voter_access_error_handler(
+        _request: Request,
+        exc: VoterAccessError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+
     @app.exception_handler(JudgeVoteError)
     async def judge_vote_error_handler(
         _request: Request,
@@ -124,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(participants_router)
     app.include_router(criteria_router)
     app.include_router(judges_router)
+    app.include_router(voter_accounts_router)
     app.include_router(judge_votes_router)
     app.include_router(voting_sessions_router)
     app.include_router(public_votes_router)

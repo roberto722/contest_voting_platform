@@ -16,19 +16,6 @@ if TYPE_CHECKING:
     from app.models.vote import JudgeVote, PublicVote
 
 
-class VoterSession(IdMixin, Base):
-    __tablename__ = "voter_sessions"
-
-    event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
-    voter_token_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    ip_hash: Mapped[str | None] = mapped_column(String(255))
-    user_agent_hash: Mapped[str | None] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-
-    event: Mapped[Event] = relationship(back_populates="voter_sessions")
-    public_votes: Mapped[list[PublicVote]] = relationship(back_populates="voter_session")
-
 
 class VotingSession(IdMixin, TimestampMixin, Base):
     __tablename__ = "voting_sessions"

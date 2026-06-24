@@ -15,7 +15,8 @@ from app.models.participant import Participant
 from app.models.result import ResultSnapshot
 from app.models.screen import ScreenState
 from app.models.vote import JudgeCriterionVote, JudgeVote, PublicCriterionVote, PublicVote
-from app.models.voting import VoterSession, VotingSession
+from app.models.voter_account import VoterAccount
+from app.models.voting import VotingSession
 
 __all__ = [
     "AccessMethod",
@@ -37,7 +38,7 @@ __all__ = [
     "ResultSnapshot",
     "ScreenMode",
     "ScreenState",
-    "VoterSession",
+    "VoterAccount",
     "VotingSession",
     "VotingSessionStatus",
 ]

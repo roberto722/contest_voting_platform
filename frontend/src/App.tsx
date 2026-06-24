@@ -13,185 +13,41 @@ import {
   type RevealMode,
 } from "./screen/reveal";
 import "./styles.css";
+import { VoterAccountsTab } from "./admin/VoterAccountsTab";
+import type {
+  EventStatus,
+  CompetitionStatus,
+  PublicVoteMethod,
+  AccessMethod,
+  VotingSessionStatus,
+  ScreenMode,
+  EventRead,
+  CompetitionRead,
+  ParticipantRead,
+  CriterionRead,
+  JudgeRead,
+  JudgeAccessCodeResetRead,
+  VotingSessionRead,
+  ResultEntry,
+  ResultsRead,
+  SetupStepStatus,
+  CompetitionSetupStatus,
+  PublicVoteSummaryRead,
+  ScreenStateRead,
+  AuditLogRead,
+  AuditFilters,
+  AdminTab,
+  AdminStep,
+  AdminState,
+  VoterAccountRead,
+  VoterCredentialNotice,
+  JudgeCredentialNotice,
+} from "./admin/types";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const websocketBaseUrl = apiBaseUrl.replace(/^http/, "ws");
 
 type AppView = "admin" | "judge" | "screen";
-
-type EventStatus = "draft" | "live" | "closed" | "archived";
-type CompetitionStatus =
-  | "draft"
-  | "ready"
-  | "voting_open"
-  | "voting_closed"
-  | "results_frozen"
-  | "revealed";
-type PublicVoteMethod = "single_choice" | "ranked_choice" | "criteria_rating";
-type AccessMethod = "public_link" | "qr_pin" | "private_link";
-type VotingSessionStatus = "open" | "closed" | "cancelled";
-type ScreenMode =
-  | "idle"
-  | "show_qr"
-  | "voting_open"
-  | "countdown"
-  | "show_results"
-  | "reveal_ranking"
-  | "show_podium"
-  | "show_final_winners";
-
-type EventRead = {
-  id: string;
-  name: string;
-  description: string | null;
-  status: EventStatus;
-};
-
-type CompetitionRead = {
-  id: string;
-  event_id: string;
-  name: string;
-  description: string | null;
-  type: string | null;
-  public_voting_enabled: boolean;
-  judge_voting_enabled: boolean;
-  public_vote_method: PublicVoteMethod;
-  public_weight: number;
-  judge_weight: number;
-  access_method: AccessMethod;
-  max_votes_per_user: number;
-  max_votes_per_competition: number;
-  allow_vote_update: boolean;
-  status: CompetitionStatus;
-};
-
-type ParticipantRead = {
-  id: string;
-  display_name: string;
-  order_index: number;
-  active: boolean;
-};
-
-type CriterionRead = {
-  id: string;
-  name: string;
-  min_score: number;
-  max_score: number;
-  weight: number;
-  active: boolean;
-};
-
-type JudgeRead = {
-  id: string;
-  event_id: string;
-  name: string;
-  display_name: string;
-  active: boolean;
-  assigned_competition_ids: string[];
-};
-
-type JudgeAccessCodeResetRead = {
-  judge: JudgeRead;
-  access_code: string;
-};
-
-type VotingSessionRead = {
-  id: string;
-  label: string | null;
-  status: VotingSessionStatus;
-  opened_at: string | null;
-  closed_at: string | null;
-};
-
-type ResultEntry = {
-  participant_id: string;
-  display_name: string;
-  rank: number;
-  final_score: number;
-  public_score: { normalized_score: number; raw_score: number };
-  judge_score: { normalized_score: number; raw_score: number };
-};
-
-type ResultsRead = {
-  results: ResultEntry[];
-};
-
-type SetupStepStatus = {
-  step: string;
-  completed: boolean;
-  message: string;
-};
-
-type CompetitionSetupStatus = {
-  competition_id: string;
-  event_id: string;
-  is_ready: boolean;
-  can_open_voting: boolean;
-  completed_steps: string[];
-  missing_steps: string[];
-  issues: string[];
-  open_issues: string[];
-  messages: string[];
-  checks: SetupStepStatus[];
-};
-
-type PublicVoteSummaryRead = {
-  competition_id: string;
-  voting_session_id: string | null;
-  total_votes: number;
-  participants: { participant_id: string; display_name: string; vote_count: number }[];
-};
-
-type ScreenStateRead = {
-  id: string;
-  event_id: string;
-  competition_id: string | null;
-  mode: ScreenMode;
-  payload_json: Record<string, unknown>;
-};
-
-type AuditLogRead = {
-  id: string;
-  event_id: string;
-  competition_id: string | null;
-  actor_type: string;
-  actor_id: string | null;
-  actor_label: string | null;
-  action: string;
-  entity_type: string;
-  entity_id: string | null;
-  details_json: Record<string, unknown>;
-  created_at: string;
-};
-
-type AuditFilters = {
-  query: string;
-  actorType: string;
-  entityType: string;
-  action: string;
-  pageSize: number;
-  page: number;
-};
-
-type AdminTab =
-  | "event"
-  | "competition"
-  | "participants"
-  | "publicCriteria"
-  | "judgeCriteria"
-  | "judges"
-  | "review"
-  | "live"
-  | "screen"
-  | "results"
-  | "logs";
-
-type AdminStep = {
-  id: AdminTab;
-  label: string;
-  disabled: boolean;
-  reason?: string;
-};
 
 type JudgeAccessRead = {
   judge_id: string;
@@ -223,20 +79,6 @@ type SavedJudgeVote = {
   scores: Record<string, number>;
 };
 
-type AdminState = {
-  events: EventRead[];
-  competitions: CompetitionRead[];
-  participants: ParticipantRead[];
-  publicCriteria: CriterionRead[];
-  judgeCriteria: CriterionRead[];
-  judges: JudgeRead[];
-  sessions: VotingSessionRead[];
-  results: ResultsRead | null;
-  setupStatus: CompetitionSetupStatus | null;
-  screenState: ScreenStateRead | null;
-  auditLogs: AuditLogRead[];
-};
-
 type JudgeState = {
   access: JudgeAccessRead | null;
   judgeId: string;
@@ -252,12 +94,6 @@ type JudgeState = {
   selectedParticipantId: string;
   criteriaScores: Record<string, number>;
   confirmation: string;
-};
-
-type JudgeCredentialNotice = {
-  judgeId: string;
-  displayName: string;
-  accessCode: string;
 };
 
 type ScreenAreaState = {
@@ -278,6 +114,8 @@ const emptyState: AdminState = {
   publicCriteria: [],
   judgeCriteria: [],
   judges: [],
+  voterAccounts: [],
+  allParticipants: [],
   sessions: [],
   results: null,
   setupStatus: null,
@@ -377,6 +215,7 @@ export default function App() {
   const [deleteEventCandidate, setDeleteEventCandidate] = useState<EventRead | null>(null);
   const [deleteCompetitionCandidate, setDeleteCompetitionCandidate] = useState<CompetitionRead | null>(null);
   const [judgeCredentialNotice, setJudgeCredentialNotice] = useState<JudgeCredentialNotice | null>(null);
+  const [voterCredentialNotice, setVoterCredentialNotice] = useState<VoterCredentialNotice | null>(null);
   const [showSeedConfirm, setShowSeedConfirm] = useState<boolean>(false);
   const [seedParticipantsCount, setSeedParticipantsCount] = useState<number>(4);
   const [seedJudgesCount, setSeedJudgesCount] = useState<number>(3);
@@ -457,6 +296,12 @@ export default function App() {
       disabled: !selectedEvent,
       reason: "Seleziona evento",
     },
+    {
+      id: "voterAccounts",
+      label: "Votanti",
+      disabled: !selectedEvent,
+      reason: "Seleziona evento",
+    },
     { id: "review", label: "Review", disabled: !selectedCompetition, reason: "Crea competizione" },
     { id: "live", label: "Live", disabled: !selectedCompetition || !setupReady, reason: "Completa setup" },
     { id: "screen", label: "Schermo", disabled: !isEventLive, reason: "Porta evento live" },
@@ -497,17 +342,24 @@ export default function App() {
   }
 
   async function loadEventData(eventId: string) {
-    const [competitions, judges, screenState, auditLogs] = await Promise.all([
+    const [competitions, judges, voterAccounts, screenState, auditLogs] = await Promise.all([
       api<CompetitionRead[]>(`/api/events/${eventId}/competitions`),
       api<JudgeRead[]>(`/api/events/${eventId}/judges`),
+      api<VoterAccountRead[]>(`/api/events/${eventId}/voter-accounts`),
       api<ScreenStateRead>(`/api/events/${eventId}/screen-state`),
       api<AuditLogRead[]>(`/api/events/${eventId}/audit-logs?limit=500`),
     ]);
+    const participantsLists = await Promise.all(
+      competitions.map((c) => api<ParticipantRead[]>(`/api/competitions/${c.id}/participants`))
+    );
+    const allParticipants = participantsLists.flat();
     setState((current) => ({
       ...current,
       competitions,
       judges,
+      voterAccounts,
       participants: [],
+      allParticipants,
       publicCriteria: [],
       judgeCriteria: [],
       sessions: [],
@@ -1347,6 +1199,20 @@ export default function App() {
               </Panel>
               ) : null}
 
+              {adminTab === "voterAccounts" && selectedEventId ? (
+                <Panel title="Account votanti">
+                  <VoterAccountsTab
+                    eventId={selectedEventId}
+                    competitions={state.competitions}
+                    participants={state.allParticipants}
+                    voterAccounts={state.voterAccounts}
+                    configurationLocked={configurationLocked}
+                    onChanged={() => loadEventData(selectedEventId)}
+                    onCredential={setVoterCredentialNotice}
+                  />
+                </Panel>
+              ) : null}
+
               {adminTab === "review" ? (
               <Panel title="Review configurazione">
                 <div className="setup-checklist">
@@ -1902,6 +1768,25 @@ export default function App() {
           </section>
         </div>
       ) : null}
+      {voterCredentialNotice && (
+        <div className="modal-backdrop" role="presentation">
+          <section aria-modal="true" className="confirm-modal" role="dialog" style={{ maxWidth: "450px" }}>
+            <h2>Codice accesso</h2>
+            <p>
+              <strong>{voterCredentialNotice.displayName}</strong>
+            </p>
+            <p className="form-hint" style={{ color: "#79351f", fontWeight: "bold" }}>
+              Copia questo codice subito: non sarà più recuperabile.
+            </p>
+            <code className="access-code-display" style={{ display: "block", fontSize: "1.5rem", padding: "10px", background: "#f0f0f0", borderRadius: "6px", margin: "14px 0", textAlign: "center", letterSpacing: "1px", color: "black" }}>{voterCredentialNotice.accessCode}</code>
+            <div className="button-strip">
+              <button type="button" onClick={() => setVoterCredentialNotice(null)}>
+                Ho copiato il codice
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

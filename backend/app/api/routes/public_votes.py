@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -10,6 +11,7 @@ from app.schemas.public_vote import (
     PublicVoteSubmit,
     PublicVoteSubmitRead,
     PublicVoteSummaryRead,
+    SelfExclusionRead,
 )
 from app.services import access_service, public_vote_service
 from app.services import audit_service
@@ -17,6 +19,43 @@ from app.services import screen_service
 from app.websocket.screen import screen_manager
 
 router = APIRouter(tags=["public votes"])
+
+
+class VoterAccessByCode(BaseModel):
+    event_id: str
+    access_code: str
+
+
+class VoterAccessRead(BaseModel):
+    voter_account_id: str
+    display_name: str
+    access_token: str
+
+
+@router.post("/api/vote/access", response_model=VoterAccessRead)
+def voter_access_by_code(
+    payload: VoterAccessByCode,
+    db: Annotated[Session, Depends(get_db)],
+) -> VoterAccessRead:
+    va = access_service.get_voter_account_by_code(db, payload.event_id, payload.access_code)
+    return VoterAccessRead(
+        voter_account_id=va.id,
+        display_name=va.display_name,
+        access_token=va.access_token,
+    )
+
+
+@router.get("/api/vote/access", response_model=VoterAccessRead)
+def voter_access_by_token(
+    token: str,
+    db: Annotated[Session, Depends(get_db)],
+) -> VoterAccessRead:
+    va = access_service.get_voter_account_by_token(db, token)
+    return VoterAccessRead(
+        voter_account_id=va.id,
+        display_name=va.display_name,
+        access_token=va.access_token,
+    )
 
 
 @router.post(
@@ -62,13 +101,15 @@ async def submit_public_vote(
     payload: PublicVoteSubmit,
     request: Request,
     db: Annotated[Session, Depends(get_db)],
+    x_voter_account_id: Annotated[str, Header()],
+    x_voter_access_token: Annotated[str, Header()],
 ) -> PublicVoteSubmitRead:
     votes = public_vote_service.submit_public_vote(
         db,
         competition_id,
         payload,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        voter_account_id=x_voter_account_id,
+        access_token=x_voter_access_token,
     )
     screen_state = screen_service.get_screen_state_for_competition(db, competition_id)
     if screen_state is not None:
@@ -81,9 +122,28 @@ async def submit_public_vote(
         )
     return {
         "voting_session_id": votes[0].voting_session_id,
-        "voter_session_id": votes[0].voter_session_id,
+        "voter_account_id": votes[0].voter_account_id,
         "votes": votes,
     }
+
+
+@router.get(
+    "/api/competitions/{competition_id}/public-votes/self-exclusion",
+    response_model=SelfExclusionRead,
+)
+def get_self_exclusion(
+    competition_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    x_voter_account_id: Annotated[str, Header()],
+    x_voter_access_token: Annotated[str, Header()],
+) -> SelfExclusionRead:
+    excluded_id = public_vote_service.get_self_exclusion(
+        db,
+        competition_id,
+        voter_account_id=x_voter_account_id,
+        access_token=x_voter_access_token,
+    )
+    return SelfExclusionRead(excluded_participant_id=excluded_id)
 
 
 @router.get(

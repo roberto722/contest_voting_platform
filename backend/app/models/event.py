@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.competition import Competition
     from app.models.judge import Judge
     from app.models.screen import ScreenState
-    from app.models.voting import VoterSession
+    from app.models.voter_account import VoterAccount
 
 
 class Event(IdMixin, TimestampMixin, Base):
@@ -34,7 +34,7 @@ class Event(IdMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
     judges: Mapped[list[Judge]] = relationship(back_populates="event", cascade="all, delete-orphan")
-    voter_sessions: Mapped[list[VoterSession]] = relationship(
+    voter_accounts: Mapped[list[VoterAccount]] = relationship(
         back_populates="event",
         cascade="all, delete-orphan",
     )

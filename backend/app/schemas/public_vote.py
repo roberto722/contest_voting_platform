@@ -14,7 +14,6 @@ class PublicCriteriaRatingInput(BaseModel):
 
 
 class PublicVoteSubmit(BaseModel):
-    voter_token: str = Field(min_length=1, max_length=255)
     method: PublicVoteMethod
     participant_id: str | None = None
     ranked_participant_ids: list[str] | None = None
@@ -39,7 +38,7 @@ class PublicVoteRead(BaseModel):
     competition_id: str
     participant_id: str
     voting_session_id: str
-    voter_session_id: str
+    voter_account_id: str
     vote_method: PublicVoteMethod
     value: float | None
     rank_position: int | None
@@ -47,7 +46,7 @@ class PublicVoteRead(BaseModel):
 
 class PublicVoteSubmitRead(BaseModel):
     voting_session_id: str
-    voter_session_id: str
+    voter_account_id: str
     votes: list[PublicVoteRead]
 
 
@@ -62,3 +61,7 @@ class PublicVoteSummaryRead(BaseModel):
     voting_session_id: str | None
     total_votes: int
     participants: list[PublicVoteParticipantSummary]
+
+
+class SelfExclusionRead(BaseModel):
+    excluded_participant_id: str | None

@@ -21,7 +21,7 @@ from app.models import (
     ResultSnapshot,
     ScreenMode,
     ScreenState,
-    VoterSession,
+    VoterAccount,
     VotingSession,
     VotingSessionStatus,
 )
@@ -98,17 +98,18 @@ def test_voting_sessions_public_votes_and_judge_votes(session: Session) -> None:
         label="Round 1",
         status=VotingSessionStatus.OPEN,
     )
-    voter = VoterSession(
+    voter = VoterAccount(
         event=event,
-        voter_token_hash="token-hash",
-        ip_hash="ip-hash",
-        user_agent_hash="ua-hash",
+        display_name="Tester",
+        access_code_hash="code-hash",
+        access_token="token-uuid",
+        active=True,
     )
     public_vote = PublicVote(
         competition=competition,
         participant=participant,
         voting_session=voting_session,
-        voter_session=voter,
+        voter_account=voter,
         vote_method=PublicVoteMethod.CRITERIA_RATING,
         value=1,
     )
@@ -163,3 +164,22 @@ def test_result_snapshot_and_screen_state_store_json_payloads(session: Session) 
     assert saved_screen is not None
     assert saved_screen.mode is ScreenMode.SHOW_RESULTS
     assert saved_screen.payload_json["title"] == "Classifica"
+
+
+def test_voter_account_creation(session: Session) -> None:
+    event = Event(name="Test Event", description=None)
+    session.add(event)
+    session.flush()
+    va = VoterAccount(
+        event_id=event.id,
+        display_name="Votante Test",
+        access_code_hash="abc123hash",
+        access_token="some-uuid-token",
+        active=True,
+    )
+    session.add(va)
+    session.flush()
+    assert va.id is not None
+    assert va.event_id == event.id
+    assert va.access_token == "some-uuid-token"
+

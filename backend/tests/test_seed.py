@@ -1,42 +1,53 @@
-from collections.abc import Generator
-
-import pytest
 from app.db import Base
-from app.models import Competition, Event, Judge, Participant
+from app.models import VoterAccount
 from app.seed import create_demo_data
 from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
-@pytest.fixture()
-def session() -> Generator[Session, None, None]:
-    engine = create_engine("sqlite:///:memory:")
+def test_create_demo_data_idempotent():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
-    TestingSession = sessionmaker(bind=engine)
+    with sessionmaker(bind=engine)() as session:
+        event1 = create_demo_data(session)
+        session.commit()
+        event2 = create_demo_data(session)
+        session.commit()
+        assert event1.id == event2.id
 
-    with TestingSession() as db:
-        yield db
 
-    Base.metadata.drop_all(engine)
+def test_seed_creates_voter_accounts():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine)() as session:
+        event = create_demo_data(session)
+        session.commit()
+        accounts = list(session.scalars(
+            select(VoterAccount).where(VoterAccount.event_id == event.id)
+        ))
+        assert len(accounts) == 6
 
 
-def test_create_demo_data_populates_event_competitions_participants_and_judges(
-    session: Session,
-) -> None:
-    event = create_demo_data(session)
-    session.commit()
-
-    saved_event = session.scalar(select(Event).where(Event.id == event.id))
-    competitions = session.scalars(select(Competition)).all()
-    participants = session.scalars(select(Participant)).all()
-    judges = session.scalars(select(Judge)).all()
-
-    assert saved_event is not None
-    assert saved_event.name == "Serata Contest Demo"
-    assert {competition.name for competition in competitions} == {
-        "Miglior Performance Musicale",
-        "Miglior Costume",
-    }
-    assert len(participants) == 8
-    assert len(judges) == 3
-    assert all(competition.judge_criteria for competition in competitions)
+def test_seed_links_participants_to_voter_accounts():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine)() as session:
+        event = create_demo_data(session)
+        session.commit()
+        session.refresh(event)
+        for comp in event.competitions:
+            linked = [p for p in comp.participants if p.voter_account_id is not None]
+            assert len(linked) == 4

@@ -13,7 +13,7 @@ from app.models import (
     PublicVoteCriterion,
     ResultSnapshot,
     ScreenState,
-    VoterSession,
+    VoterAccount,
     VotingSession,
 )
 from fastapi.testclient import TestClient
@@ -282,6 +282,15 @@ def test_delete_event_removes_all_associated_data(
         json={"name": "Tecnica"},
     ).json()["id"]
 
+    voter_account_resp = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Votante da eliminare"}
+    )
+    assert voter_account_resp.status_code == 201
+    va_data = voter_account_resp.json()
+    va_id = va_data["voter_account"]["id"]
+    va_token = va_data["voter_account"]["access_token"]
+
     assert client.patch(f"/api/events/{event_id}", json={"status": "live"}).status_code == 200
     assert (
         client.post(
@@ -294,10 +303,13 @@ def test_delete_event_removes_all_associated_data(
         client.post(
             f"/api/competitions/{competition_id}/public-votes",
             json={
-                "voter_token": "anon-1",
                 "method": "single_choice",
                 "participant_id": participant_ids[0],
             },
+            headers={
+                "X-Voter-Account-Id": va_id,
+                "X-Voter-Access-Token": va_token,
+            }
         ).status_code
         == 201
     )
@@ -332,7 +344,7 @@ def test_delete_event_removes_all_associated_data(
     )
     assert db_session.scalars(select(Participant)).all() == []
     assert db_session.scalars(select(PublicVote)).all() == []
-    assert db_session.scalars(select(VoterSession)).all() == []
+    assert db_session.scalars(select(VoterAccount)).all() == []
     assert db_session.scalars(select(VotingSession)).all() == []
     assert db_session.scalars(select(ResultSnapshot)).all() == []
     assert db_session.scalars(select(ScreenState)).all() == []
@@ -384,7 +396,7 @@ def test_delete_competition_removes_only_competition_associated_data(
         is None
     )
     assert db_session.scalars(select(PublicVote)).all() == []
-    assert db_session.scalars(select(VoterSession)).all() == []
+    assert db_session.scalars(select(VoterAccount)).all() == []
     assert db_session.scalars(select(VotingSession)).all() == []
     assert db_session.scalars(select(ResultSnapshot)).all() == []
     assert (

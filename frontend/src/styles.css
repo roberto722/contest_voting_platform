@@ -1792,3 +1792,122 @@ h2 {
   pointer-events: none;
   mix-blend-mode: screen;
 }
+
+/* ===== VoterAccounts tab ===== */
+.voter-accounts-tab h2 {
+  margin-bottom: 8px;
+}
+
+.voter-create-form fieldset {
+  border: 1px solid #c7d0d9;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.voter-create-form legend {
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.voter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.voter-row {
+  background: #fff;
+  border: 1px solid #c7d0d9;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voter-row-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.voter-notes {
+  color: #6b7a8d;
+  font-size: 0.875rem;
+}
+
+.voter-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.voter-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.voter-links-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #6b7a8d;
+}
+
+.voter-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e8f0fe;
+  color: #1a3c6e;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: #9d2f1a;
+  min-height: unset;
+  padding: 0 2px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.voter-link-add select {
+  width: auto;
+  min-width: 200px;
+}
+
+.error-banner {
+  background: #ffeaea;
+  border: 1px solid #e57373;
+  border-radius: 6px;
+  color: #9d2f1a;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.badge-success {
+  background: #e6f4ea;
+  color: #1e6b3a;
+}
+
+.badge-muted {
+  background: #f0f0f0;
+  color: #6b7a8d;
+}

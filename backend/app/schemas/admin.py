@@ -134,6 +134,7 @@ class ParticipantRead(BaseModel):
     performance_title: str | None
     order_index: int
     active: bool
+    voter_account_id: str | None = None
 
 
 class CriterionCreate(BaseModel):

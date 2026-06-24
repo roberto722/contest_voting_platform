@@ -14,7 +14,8 @@ if TYPE_CHECKING:
     from app.models.criteria import JudgeCriterion, PublicVoteCriterion
     from app.models.judge import Judge
     from app.models.participant import Participant
-    from app.models.voting import VoterSession, VotingSession
+    from app.models.voter_account import VoterAccount
+    from app.models.voting import VotingSession
 
 
 class PublicVote(IdMixin, TimestampMixin, Base):
@@ -32,8 +33,8 @@ class PublicVote(IdMixin, TimestampMixin, Base):
         ForeignKey("voting_sessions.id", ondelete="CASCADE"),
         index=True,
     )
-    voter_session_id: Mapped[str] = mapped_column(
-        ForeignKey("voter_sessions.id", ondelete="CASCADE"),
+    voter_account_id: Mapped[str] = mapped_column(
+        ForeignKey("voter_accounts.id", ondelete="CASCADE"),
         index=True,
     )
     vote_method: Mapped[PublicVoteMethod] = mapped_column(
@@ -46,7 +47,7 @@ class PublicVote(IdMixin, TimestampMixin, Base):
     competition: Mapped[Competition] = relationship(back_populates="public_votes")
     participant: Mapped[Participant] = relationship(back_populates="public_votes")
     voting_session: Mapped[VotingSession] = relationship(back_populates="public_votes")
-    voter_session: Mapped[VoterSession] = relationship(back_populates="public_votes")
+    voter_account: Mapped[VoterAccount] = relationship(back_populates="public_votes")
     criterion_votes: Mapped[list[PublicCriterionVote]] = relationship(
         back_populates="public_vote",
         cascade="all, delete-orphan",
