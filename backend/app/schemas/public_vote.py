@@ -65,3 +65,8 @@ class PublicVoteSummaryRead(BaseModel):
 
 class SelfExclusionRead(BaseModel):
     excluded_participant_id: str | None
+
+
+class VoterVotingStatusRead(BaseModel):
+    has_voted: bool
+    allow_vote_update: bool

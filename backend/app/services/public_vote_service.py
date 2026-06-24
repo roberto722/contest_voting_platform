@@ -92,6 +92,27 @@ def get_self_exclusion(
     return _get_self_participant_id(db, voter_account_id, competition_id)
 
 
+def has_voted_in_active_session(
+    db: Session,
+    competition_id: str,
+    voter_account_id: str,
+    access_token: str,
+) -> bool:
+    access_service.verify_voter_account(db, voter_account_id, access_token)
+    from app.models import VotingSession, VotingSessionStatus
+    voting_session = db.scalar(
+        select(VotingSession)
+        .where(
+            VotingSession.competition_id == competition_id,
+            VotingSession.status == VotingSessionStatus.OPEN,
+        )
+    )
+    if not voting_session:
+        return False
+    existing = _list_existing_votes(db, voting_session.id, voter_account_id)
+    return bool(existing)
+
+
 def get_public_vote_summary(db: Session, competition_id: str) -> dict[str, object]:
     competition = get_competition(db, competition_id)
     voting_session = _get_summary_voting_session(db, competition_id)

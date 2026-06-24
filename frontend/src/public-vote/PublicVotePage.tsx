@@ -25,6 +25,7 @@ type Competition = {
   public_voting_enabled: boolean;
   public_vote_method: PublicVoteMethod;
   max_votes_per_user: number;
+  allow_vote_update: boolean;
   status: string;
 };
 
@@ -231,16 +232,26 @@ export default function PublicVotePage() {
     setPhase("list");
     const comps = await publicApi<Competition[]>(`/api/events/${sess.eventId}/competitions`);
     const votable = comps.filter((c) => c.public_voting_enabled);
-    const sessionLists = await Promise.all(
-      votable.map((c) =>
-        publicApi<VotingSession[]>(`/api/competitions/${c.id}/voting-sessions`).catch(() => [])
+    const [sessionLists, statusList] = await Promise.all([
+      Promise.all(
+        votable.map((c) =>
+          publicApi<VotingSession[]>(`/api/competitions/${c.id}/voting-sessions`).catch(() => [])
+        )
+      ),
+      Promise.all(
+        votable.map((c) =>
+          publicApi<{ has_voted: boolean; allow_vote_update: boolean }>(
+            `/api/competitions/${c.id}/public-votes/status`,
+            { headers: voterAuthHeaders(sess) }
+          ).catch(() => ({ has_voted: false, allow_vote_update: false }))
+        )
       )
-    );
+    ]);
     setEntries(
       votable.map((c, i) => ({
         competition: c,
         votingState: getVotingState(sessionLists[i]),
-        voted: false,
+        voted: statusList[i].has_voted,
       }))
     );
   }
@@ -277,18 +288,29 @@ export default function PublicVotePage() {
       try {
         const comps = await publicApi<Competition[]>(`/api/events/${sess.eventId}/competitions`);
         const votable = comps.filter((c) => c.public_voting_enabled);
-        const sessionLists = await Promise.all(
-          votable.map((c) =>
-            publicApi<VotingSession[]>(`/api/competitions/${c.id}/voting-sessions`).catch(() => [])
+        const [sessionLists, statusList] = await Promise.all([
+          Promise.all(
+            votable.map((c) =>
+              publicApi<VotingSession[]>(`/api/competitions/${c.id}/voting-sessions`).catch(() => [])
+            )
+          ),
+          Promise.all(
+            votable.map((c) =>
+              publicApi<{ has_voted: boolean; allow_vote_update: boolean }>(
+                `/api/competitions/${c.id}/public-votes/status`,
+                { headers: voterAuthHeaders(sess) }
+              ).catch(() => ({ has_voted: false, allow_vote_update: false }))
+            )
           )
-        );
+        ]);
         setEntries((prev) => {
           return votable.map((c, i) => {
             const prevEntry = prev.find((e) => e.competition.id === c.id);
+            const wasVoted = prevEntry ? prevEntry.voted : false;
             return {
               competition: c,
               votingState: getVotingState(sessionLists[i]),
-              voted: prevEntry ? prevEntry.voted : false,
+              voted: statusList[i].has_voted || wasVoted,
             };
           });
         });
@@ -504,16 +526,19 @@ export default function PublicVotePage() {
                     <p className="comp-card-desc">{entry.competition.description}</p>
                   )}
                   <div className="comp-card-footer">
-                    {entry.voted ? (
+                    {entry.voted && !entry.competition.allow_vote_update ? (
                       <span className="comp-voted-badge">✓ Voto registrato</span>
                     ) : entry.votingState === "open" ? (
-                      <button
-                        className="public-primary"
-                        type="button"
-                        onClick={() => void startVoting(entry.competition.id, session)}
-                      >
-                        Vota ora →
-                      </button>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                        {entry.voted && <span className="comp-voted-badge" style={{ alignSelf: "flex-start" }}>✓ Voto registrato (modificabile)</span>}
+                        <button
+                          className="public-primary"
+                          type="button"
+                          onClick={() => void startVoting(entry.competition.id, session)}
+                        >
+                          {entry.voted ? "Modifica voto" : "Vota ora →"}
+                        </button>
+                      </div>
                     ) : (
                       <span className="comp-unavailable">Non disponibile</span>
                     )}

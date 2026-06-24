@@ -12,6 +12,7 @@ from app.schemas.public_vote import (
     PublicVoteSubmitRead,
     PublicVoteSummaryRead,
     SelfExclusionRead,
+    VoterVotingStatusRead,
 )
 from app.services import access_service, public_vote_service
 from app.services import audit_service
@@ -144,6 +145,29 @@ def get_self_exclusion(
         access_token=x_voter_access_token,
     )
     return SelfExclusionRead(excluded_participant_id=excluded_id)
+
+
+@router.get(
+    "/api/competitions/{competition_id}/public-votes/status",
+    response_model=VoterVotingStatusRead,
+)
+def get_public_voting_status(
+    competition_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    x_voter_account_id: Annotated[str, Header()],
+    x_voter_access_token: Annotated[str, Header()],
+) -> VoterVotingStatusRead:
+    has_voted = public_vote_service.has_voted_in_active_session(
+        db,
+        competition_id,
+        voter_account_id=x_voter_account_id,
+        access_token=x_voter_access_token,
+    )
+    competition = public_vote_service.get_competition(db, competition_id)
+    return VoterVotingStatusRead(
+        has_voted=has_voted,
+        allow_vote_update=competition.allow_vote_update,
+    )
 
 
 @router.get(
