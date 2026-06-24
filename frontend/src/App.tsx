@@ -14,6 +14,38 @@ import {
 } from "./screen/reveal";
 import "./styles.css";
 import { VoterAccountsTab } from "./admin/VoterAccountsTab";
+import {
+  Panel,
+  Form,
+  List,
+  Badge,
+  Metric,
+  MiniTable,
+  CriterionForm,
+  CriteriaList,
+  competitionNamesForJudge,
+  screenModeLabel,
+  auditActionLabel,
+  auditDetailsText,
+  auditLogMatchesQuery,
+  uniqueStringValues,
+  formatPublicVoteMethod,
+  formatAccessMethod,
+  textPayload,
+  numberPayload,
+  textValue,
+  numberValue,
+  slugValue,
+} from "./admin/components";
+import { EventTab } from "./admin/EventTab";
+import { CompetitionTab } from "./admin/CompetitionTab";
+import { ParticipantsTab } from "./admin/ParticipantsTab";
+import { CriteriaTab } from "./admin/CriteriaTab";
+import { JudgesTab } from "./admin/JudgesTab";
+import { ReviewTab } from "./admin/ReviewTab";
+import { LiveTab } from "./admin/LiveTab";
+import { ResultsTab } from "./admin/ResultsTab";
+import { LogsTab } from "./admin/LogsTab";
 import type {
   EventStatus,
   CompetitionStatus,
@@ -577,6 +609,36 @@ export default function App() {
     await refreshSelectedCompetition();
   }
 
+  async function deleteParticipant(id: string) {
+    await api(`/api/participants/${id}`, { method: "DELETE" });
+    await refreshSelectedEvent();
+    await refreshSelectedCompetition();
+  }
+
+  async function toggleParticipantActive(id: string, active: boolean) {
+    await api(`/api/participants/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    });
+    await refreshSelectedEvent();
+    await refreshSelectedCompetition();
+  }
+
+  async function deleteCriterion(id: string) {
+    await api(`/api/criteria/${id}`, { method: "DELETE" });
+    await refreshSelectedEvent();
+    await refreshSelectedCompetition();
+  }
+
+  async function toggleCriterionActive(id: string, active: boolean) {
+    await api(`/api/criteria/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    });
+    await refreshSelectedEvent();
+    await refreshSelectedCompetition();
+  }
+
   async function createJudge(form: HTMLFormElement) {
     if (!selectedEventId) return;
     const data = new FormData(form);
@@ -774,36 +836,13 @@ export default function App() {
       ) : (
       <section className="workspace">
         <aside className="rail">
-          <Panel title="Eventi">
-            <Form
-              submitLabel="Crea evento"
-              onSubmit={(form) => run(() => createEvent(form), "Evento creato")}
-            >
-              <input name="name" placeholder="Nome evento" required />
-              <input name="description" placeholder="Descrizione" />
-            </Form>
-            <List>
-              {state.events.map((event) => (
-                <div className={event.id === selectedEventId ? "row active event-row" : "row event-row"} key={event.id}>
-                  <button
-                    className="event-select"
-                    onClick={() => setSelectedEventId(event.id)}
-                    type="button"
-                  >
-                    <span>{event.name}</span>
-                    <Badge>{eventStatusLabels[event.status] || event.status}</Badge>
-                  </button>
-                  <button
-                    className="danger-button"
-                    type="button"
-                    onClick={() => setDeleteEventCandidate(event)}
-                  >
-                    Elimina
-                  </button>
-                </div>
-              ))}
-            </List>
-          </Panel>
+          <EventTab
+            events={state.events}
+            selectedEventId={selectedEventId}
+            onSelect={setSelectedEventId}
+            onDelete={setDeleteEventCandidate}
+            onCreate={(form) => run(() => createEvent(form), "Evento creato")}
+          />
         </aside>
 
         <section className="content">
@@ -819,160 +858,16 @@ export default function App() {
               ) : null
             }
           >
-            <div className="split">
-              <div>
-                <h2>Competizioni</h2>
-                <Form
-                  submitLabel="Crea competizione"
-                  onSubmit={(form) => run(() => createCompetition(form), "Competizione creata")}
-                  disabled={!selectedEvent || configurationLocked}
-                >
-                  {configurationLocked ? (
-                    <p className="lock-note">Evento live o chiuso: configurazione bloccata.</p>
-                  ) : null}
-                  <label className="field-stack">
-                    <span>Nome competizione</span>
-                    <input name="name" placeholder="Es. Miglior performance" required />
-                  </label>
-                  <div className="inline-grid">
-                    <label className="checkline">
-                      <input name="public_voting_enabled" type="checkbox" defaultChecked />
-                      Voto pubblico
-                    </label>
-                    <label className="checkline">
-                      <input name="judge_voting_enabled" type="checkbox" defaultChecked />
-                      Voto giudici
-                    </label>
-                    <label className="checkline">
-                      <input name="allow_vote_update" type="checkbox" />
-                      Aggiornamento voto
-                    </label>
-                  </div>
-                  <label className="field-stack">
-                    <span>Metodo voto pubblico</span>
-                    <select name="public_vote_method" defaultValue="single_choice">
-                      <option value="single_choice">Scelta singola</option>
-                      <option value="ranked_choice">Classifica</option>
-                      <option value="criteria_rating">Valutazione per criteri</option>
-                    </select>
-                  </label>
-                  <div className="inline-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
-                    <label className="field-stack">
-                      <span>Peso pubblico</span>
-                      <input name="public_weight" type="number" defaultValue="50" min="0" />
-                    </label>
-                    <label className="field-stack">
-                      <span>Peso giudici</span>
-                      <input name="judge_weight" type="number" defaultValue="50" min="0" />
-                    </label>
-                  </div>
-                  <div className="inline-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", marginTop: "8px" }}>
-                    <label className="field-stack">
-                      <span>Max voti per utente</span>
-                      <input name="max_votes_per_user" type="number" defaultValue="1" min="1" />
-                      <span className="form-hint" style={{ fontWeight: "normal" }}>
-                        Candidati selezionabili in una singola scheda di voto (es. per metodo classifica).
-                      </span>
-                    </label>
-                    <label className="field-stack">
-                      <span>Max votazioni per competizione</span>
-                      <input name="max_votes_per_competition" type="number" defaultValue="1" min="1" />
-                      <span className="form-hint" style={{ fontWeight: "normal" }}>
-                        Numero massimo di volte (round/sessioni) in cui lo stesso utente può votare per questa competizione.
-                      </span>
-                    </label>
-                  </div>
-                  <div className="inline-grid">
-                    <label className="field-stack">
-                      <span>Metodo accesso</span>
-                      <select name="access_method" defaultValue="public_link">
-                        <option value="public_link">Link pubblico</option>
-                        <option value="qr_pin">QR + PIN</option>
-                        <option value="private_link">Link privato</option>
-                      </select>
-                    </label>
-                    <label className="field-stack">
-                      <span>PIN se QR/PIN</span>
-                      <input name="access_pin" placeholder="PIN pubblico" />
-                    </label>
-                  </div>
-                </Form>
-                <List>
-                  {state.competitions.map((competition) => (
-                    <div
-                      className={
-                        competition.id === selectedCompetitionId ? "row active event-row" : "row event-row"
-                      }
-                      key={competition.id}
-                    >
-                      <button
-                        className="event-select"
-                        onClick={() => setSelectedCompetitionId(competition.id)}
-                        type="button"
-                      >
-                        <span>{competition.name}</span>
-                        <Badge>{competitionStatusLabels[competition.status] || competition.status}</Badge>
-                      </button>
-                      <button
-                        className="danger-button"
-                        disabled={configurationLocked}
-                        type="button"
-                        onClick={() => setDeleteCompetitionCandidate(competition)}
-                      >
-                        Elimina
-                      </button>
-                    </div>
-                  ))}
-                </List>
-              </div>
-
-              <div>
-                <h2>{selectedCompetition ? selectedCompetition.name : "Dettaglio"}</h2>
-                {selectedCompetition ? (
-                  <>
-                    {selectedCompetition.description ? (
-                      <p className="form-hint">{selectedCompetition.description}</p>
-                    ) : null}
-                    <div className="metrics">
-                      <Metric label="ID voto" value={selectedCompetition.id} />
-                      <Metric label="Stato" value={selectedCompetition.status} />
-                      <Metric
-                        label="Metodo voto pubblico"
-                        value={formatPublicVoteMethod(selectedCompetition.public_vote_method)}
-                      />
-                      <Metric
-                        label="Accesso pubblico"
-                        value={formatAccessMethod(selectedCompetition.access_method)}
-                      />
-                      <Metric label="Peso pubblico" value={selectedCompetition.public_weight} />
-                      <Metric label="Peso giudici" value={selectedCompetition.judge_weight} />
-                      <Metric
-                        label="Voto pubblico"
-                        value={selectedCompetition.public_voting_enabled ? "attivo" : "disattivato"}
-                      />
-                      <Metric
-                        label="Voto giudici"
-                        value={selectedCompetition.judge_voting_enabled ? "attivo" : "disattivato"}
-                      />
-                      <Metric
-                        label="Max voti per utente"
-                        value={selectedCompetition.max_votes_per_user}
-                      />
-                      <Metric
-                        label="Max votazioni per competizione"
-                        value={selectedCompetition.max_votes_per_competition}
-                      />
-                      <Metric
-                        label="Aggiornamento voto"
-                        value={selectedCompetition.allow_vote_update ? "consentito" : "bloccato"}
-                      />
-                      <Metric label="Sessione" value={openSession ? "aperta" : "chiusa"} />
-                      <Metric label="Tipo" value={selectedCompetition.type || "non impostato"} />
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            </div>
+            <CompetitionTab
+              competitions={state.competitions}
+              selectedCompetitionId={selectedCompetitionId}
+              selectedEventId={selectedEventId}
+              configurationLocked={configurationLocked}
+              onSelect={setSelectedCompetitionId}
+              onDelete={setDeleteCompetitionCandidate}
+              onCreate={(form) => run(() => createCompetition(form), "Competizione creata")}
+              sessions={state.sessions}
+            />
           </Panel>
 
           {selectedCompetition ? (
@@ -1044,159 +939,64 @@ export default function App() {
               ) : null}
 
               {adminTab === "participants" ? (
-              <Panel title="Partecipanti">
-                <Form
-                  submitLabel="Aggiungi"
-                  onSubmit={(form) => run(() => createParticipant(form), "Partecipante aggiunto")}
-                  disabled={configurationLocked}
-                >
-                  <input name="display_name" placeholder="Nome pubblico" required />
-                  <input name="order_index" type="number" placeholder="Ordine" />
-                </Form>
-                <MiniTable
-                  rows={state.participants.map((participant) => [
-                    participant.display_name,
-                    `#${participant.order_index}`,
-                    participant.active ? "attivo" : "off",
-                  ])}
+                <ParticipantsTab
+                  participants={state.participants}
+                  competitionId={selectedCompetitionId}
+                  configurationLocked={configurationLocked}
+                  onAdd={(form) => run(() => createParticipant(form), "Partecipante aggiunto")}
+                  onToggleActive={(id, active) => run(() => toggleParticipantActive(id, active), "Stato partecipante aggiornato")}
+                  onDelete={(id) => run(() => deleteParticipant(id), "Partecipante eliminato")}
+                  voterAccounts={state.voterAccounts}
                 />
-              </Panel>
               ) : null}
 
               {adminTab === "publicCriteria" ? (
-              <Panel title="Criteri pubblico">
-                {!publicCriteriaRequired ? (
-                  <p className="empty">Non richiesti per metodo pubblico corrente.</p>
-                ) : null}
-                <CriterionForm
-                  onSubmit={(form) => run(() => createCriterion(form, "public"), "Criterio aggiunto")}
-                  disabled={configurationLocked || !publicCriteriaRequired}
+                <CriteriaTab
+                  criteria={state.publicCriteria}
+                  type="public"
+                  competitionId={selectedCompetitionId}
+                  configurationLocked={configurationLocked}
+                  onAdd={(form) => run(() => createCriterion(form, "public"), "Criterio aggiunto")}
+                  onToggleActive={(id, active) => run(() => toggleCriterionActive(id, active), "Stato criterio aggiornato")}
+                  onDelete={(id) => run(() => deleteCriterion(id), "Criterio eliminato")}
+                  required={publicCriteriaRequired}
+                  emptyMessage="Non richiesti per metodo pubblico corrente."
                 />
-                <CriteriaList criteria={state.publicCriteria} />
-              </Panel>
               ) : null}
 
               {adminTab === "judgeCriteria" ? (
-              <Panel title="Criteri giudici">
-                {!judgeSetupRequired ? (
-                  <p className="empty">Non richiesti se voto giudici disattivato.</p>
-                ) : null}
-                <CriterionForm
-                  onSubmit={(form) => run(() => createCriterion(form, "judge"), "Criterio aggiunto")}
-                  disabled={configurationLocked || !judgeSetupRequired}
+                <CriteriaTab
+                  criteria={state.judgeCriteria}
+                  type="judge"
+                  competitionId={selectedCompetitionId}
+                  configurationLocked={configurationLocked}
+                  onAdd={(form) => run(() => createCriterion(form, "judge"), "Criterio aggiunto")}
+                  onToggleActive={(id, active) => run(() => toggleCriterionActive(id, active), "Stato criterio aggiornato")}
+                  onDelete={(id) => run(() => deleteCriterion(id), "Criterio eliminato")}
+                  required={judgeSetupRequired}
+                  emptyMessage="Non richiesti se voto giudici disattivato."
                 />
-                <CriteriaList criteria={state.judgeCriteria} />
-              </Panel>
               ) : null}
 
               {adminTab === "judges" ? (
-              <Panel title="Giudici">
-                <Form
-                  submitLabel="Crea giudice"
-                  onSubmit={(form) => run(() => createJudge(form), "Giudice creato")}
-                  disabled={configurationLocked}
-                >
-                  <input name="display_name" placeholder="Nome giudice" required />
-                  <input name="access_code" placeholder="Codice accesso" required />
-                  <p className="form-hint">L'ID tecnico del giudice viene mostrato dopo il salvataggio.</p>
-                </Form>
-                {judgeCredentialNotice ? (
-                  <div className="credential-notice">
-                    <strong>Credenziali da consegnare</strong>
-                    <div className="credential-grid">
-                      <Metric label="Giudice" value={judgeCredentialNotice.displayName} />
-                      <Metric label="ID tecnico" value={judgeCredentialNotice.judgeId} />
-                      <Metric label="Codice accesso" value={judgeCredentialNotice.accessCode} />
-                      <Metric label="Link di login" value={`${window.location.origin}/judge`} />
-                    </div>
-                  </div>
-                ) : null}
-                <List>
-                  {state.judges.map((judge) => (
-                    <div className="row compact judge-row" key={judge.id}>
-                      <span>
-                        <strong>{judge.display_name}</strong>
-                        <small>ID tecnico: {judge.id}</small>
-                        <small>
-                          Competizioni:{" "}
-                          {competitionNamesForJudge(judge, state.competitions) || "nessuna"}
-                        </small>
-                      </span>
-                      <div className="judge-competition-list">
-                        {state.competitions.length ? (
-                          state.competitions.map((competition) => {
-                            const isAssigned = judge.assigned_competition_ids.includes(competition.id);
-                            return (
-                              <label
-                                className={
-                                  !competition.judge_voting_enabled
-                                    ? "assignment-chip disabled-chip"
-                                    : isAssigned
-                                      ? "assignment-chip selected"
-                                      : "assignment-chip"
-                                }
-                                title={
-                                  !competition.judge_voting_enabled
-                                    ? "Il voto dei giudici è disabilitato per questa competizione"
-                                    : undefined
-                                }
-                                key={competition.id}
-                              >
-                                <input
-                                  checked={isAssigned}
-                                  type="checkbox"
-                                  disabled={configurationLocked || !competition.judge_voting_enabled}
-                                  onChange={() =>
-                                    run(
-                                      () => toggleJudgeCompetition(judge.id, competition.id, isAssigned),
-                                      isAssigned
-                                        ? `Giudice rimosso da ${competition.name}`
-                                        : `Giudice assegnato a ${competition.name}`
-                                    )
-                                  }
-                                />
-                                <span>
-                                  {competition.name}
-                                  {!competition.judge_voting_enabled && " (no voto giudici)"}
-                                </span>
-                              </label>
-                            );
-                          })
-                        ) : (
-                          <small>Nessuna competizione.</small>
-                        )}
-                      </div>
-                      <div className="judge-actions">
-                        <button
-                          className="secondary-button"
-                          type="button"
-                          onClick={() =>
-                            run(
-                              () => regenerateJudgeAccessCode(judge.id),
-                              "Codice giudice rigenerato"
-                            )
-                          }
-                        >
-                          Rigenera codice
-                        </button>
-                        <button
-                          className="danger-button"
-                          disabled={configurationLocked}
-                          type="button"
-                          onClick={() =>
-                            run(
-                              () => deleteJudge(judge.id),
-                              "Giudice eliminato"
-                            )
-                          }
-                        >
-                          Elimina
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </List>
-              </Panel>
+                <JudgesTab
+                  judges={state.judges}
+                  competitions={state.competitions}
+                  eventId={selectedEventId}
+                  configurationLocked={configurationLocked}
+                  onAdd={(form) => run(() => createJudge(form), "Giudice creato")}
+                  onDelete={(id) => run(() => deleteJudge(id), "Giudice eliminato")}
+                  onToggleCompetition={(judgeId, competitionId, isAssigned) =>
+                    run(
+                      () => toggleJudgeCompetition(judgeId, competitionId, isAssigned),
+                      isAssigned
+                        ? "Giudice rimosso"
+                        : "Giudice assegnato"
+                    )
+                  }
+                  onRegenerateCode={(judgeId) => run(() => regenerateJudgeAccessCode(judgeId), "Codice giudice rigenerato")}
+                  judgeCredentialNotice={judgeCredentialNotice}
+                />
               ) : null}
 
               {adminTab === "voterAccounts" && selectedEventId ? (
@@ -1214,108 +1014,31 @@ export default function App() {
               ) : null}
 
               {adminTab === "review" ? (
-              <Panel title="Review configurazione">
-                <div className="setup-checklist">
-                  <p><strong>Checklist setup</strong></p>
-                  <ul>
-                    {(state.setupStatus?.checks ?? []).map((check) => (
-                      <li className={check.completed ? "done" : ""} key={check.step}>
-                        <span>{check.completed ? "OK" : "NO"}</span> {check.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="metrics">
-                  <Metric label="Setup" value={setupReady ? "completo" : "incompleto"} />
-                  <Metric label="Apertura voto" value={canOpenVoting ? "possibile" : "bloccata"} />
-                  <Metric label="Evento" value={selectedEvent ? eventStatusLabels[selectedEvent.status] : "-"} />
-                  <Metric label="Competizione" value={competitionStatusLabels[selectedCompetition.status]} />
-                </div>
-                {state.setupStatus?.issues.length ? (
-                  <ul className="issue-list">
-                    {state.setupStatus.issues.map((issue) => (
-                      <li key={issue}>{setupIssueMap[issue] || issue}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                {isUnpopulated && selectedEvent?.status === "draft" && (
-                  <div className="setup-success" style={{ marginTop: "1.2rem", backgroundColor: "rgba(22, 38, 56, 0.05)", borderColor: "#c7d0d9", color: "#162638" }}>
-                    <p style={{ marginBottom: "10px", fontWeight: "normal" }}>
-                      La competizione è vuota. Puoi popolarla rapidamente con partecipanti, criteri e giudici di prova coerenti con la configurazione scelta.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setShowSeedConfirm(true)}
-                    >
-                      Popola con Dati Fake
-                    </button>
-                  </div>
-                )}
-              </Panel>
+                <ReviewTab
+                  setupStatus={state.setupStatus}
+                  competition={selectedCompetition}
+                  selectedEvent={selectedEvent ?? null}
+                  isUnpopulated={isUnpopulated}
+                  setupReady={setupReady}
+                  canOpenVoting={canOpenVoting}
+                  onPopolaFakeData={() => setShowSeedConfirm(true)}
+                />
               ) : null}
 
               {adminTab === "live" ? (
-              <div className="grid">
-              <Panel title="Votazione">
-                {state.setupStatus && !state.setupStatus.is_ready && (
-                  <div className="setup-checklist">
-                    <p><strong>Configurazione richiesta:</strong></p>
-                    <ul>
-                      {state.setupStatus.issues.map(issue => (
-                        <li key={issue}>{setupIssueMap[issue] || issue}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {state.setupStatus && state.setupStatus.is_ready && !isEventLive && (
-                   <div className="setup-success">
-                     <p>Setup completo. Porta evento live per abilitare voto e schermo.</p>
-                   </div>
-                )}
-                {state.setupStatus && state.setupStatus.is_ready && isEventLive && !openSession && (
-                   <div className="setup-success">
-                     <p>Configurazione completata. Votazione apribile.</p>
-                   </div>
-                )}
-                {!isEventLive ? (
-                  <div className="button-strip">
-                    <button
-                      type="button"
-                      disabled={!setupReady}
-                      onClick={() => run(goEventLive, "Evento live")}
-                    >
-                      Porta evento live
-                    </button>
-                  </div>
-                ) : null}
-                <Form
-                  submitLabel="Apri votazione"
-                  onSubmit={(form) => run(() => openVoting(form), "Votazione aperta")}
-                  disabled={!canOpenVoting || !!openSession}
-                >
-                  <input name="label" placeholder="Round" defaultValue="Round live" />
-                </Form>
-                <div className="button-strip">
-                  <button
-                    type="button"
-                    disabled={!openSession}
-                    onClick={() => run(closeVoting, "Votazione chiusa")}
-                  >
-                    Chiudi votazione
-                  </button>
-                  <button type="button" onClick={() => run(freezeResults, "Risultati congelati")}>
-                    Freeze risultati
-                  </button>
-                </div>
-                <MiniTable
-                  rows={state.sessions.map((session) => [
-                    session.label ?? "Sessione",
-                    session.status,
-                    session.opened_at ? new Date(session.opened_at).toLocaleTimeString() : "-",
-                  ])}
+                <LiveTab
+                  competition={selectedCompetition}
+                  event={selectedEvent ?? null}
+                  sessions={state.sessions}
+                  setupStatus={state.setupStatus}
+                  canOpenVoting={canOpenVoting}
+                  isEventLive={isEventLive}
+                  setupReady={setupReady}
+                  onGoLive={() => run(goEventLive, "Evento live")}
+                  onOpenVoting={(form) => run(() => openVoting(form), "Votazione aperta")}
+                  onCloseVoting={() => run(closeVoting, "Votazione chiusa")}
+                  onFreeze={() => run(freezeResults, "Risultati congelati")}
                 />
-              </Panel>
-              </div>
               ) : null}
 
               {adminTab === "screen" ? (
@@ -1444,174 +1167,20 @@ export default function App() {
               ) : null}
 
               {adminTab === "results" ? (
-              <Panel title="Risultati">
-                <button
-                  type="button"
-                  onClick={() => run(refreshSelectedCompetition, "Risultati aggiornati")}
-                >
-                  Aggiorna risultati
-                </button>
-                <ol className="ranking">
-                  {(state.results?.results ?? []).map((result) => (
-                    <li key={result.participant_id}>
-                      <strong>
-                        {result.rank}. {result.display_name}
-                      </strong>
-                      <span>{result.final_score.toFixed(2)}</span>
-                      <small>
-                        Pub {result.public_score.normalized_score.toFixed(1)} / Giu{" "}
-                        {result.judge_score.normalized_score.toFixed(1)}
-                      </small>
-                    </li>
-                  ))}
-                </ol>
-              </Panel>
+                <ResultsTab
+                  results={state.results}
+                  competition={selectedCompetition}
+                  onFreeze={() => run(freezeResults, "Risultati congelati")}
+                  onRefresh={() => run(refreshSelectedCompetition, "Risultati aggiornati")}
+                />
               ) : null}
 
               {adminTab === "logs" ? (
-              <Panel title="Log attività">
-                <div className="audit-controls">
-                  <input
-                    aria-label="Cerca log"
-                    placeholder="Cerca nei log"
-                    value={auditFilters.query}
-                    onChange={(event) =>
-                      setAuditFilters((current) => ({
-                        ...current,
-                        query: event.target.value,
-                        page: 1,
-                      }))
-                    }
-                  />
-                  <select
-                    aria-label="Filtra attore"
-                    value={auditFilters.actorType}
-                    onChange={(event) =>
-                      setAuditFilters((current) => ({
-                        ...current,
-                        actorType: event.target.value,
-                        page: 1,
-                      }))
-                    }
-                  >
-                    <option value="all">Tutti attori</option>
-                    {auditActorTypes.map((actorType) => (
-                      <option key={actorType} value={actorType}>
-                        {actorType}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Filtra entità"
-                    value={auditFilters.entityType}
-                    onChange={(event) =>
-                      setAuditFilters((current) => ({
-                        ...current,
-                        entityType: event.target.value,
-                        page: 1,
-                      }))
-                    }
-                  >
-                    <option value="all">Tutte entità</option>
-                    {auditEntityTypes.map((entityType) => (
-                      <option key={entityType} value={entityType}>
-                        {entityType}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Filtra azione"
-                    value={auditFilters.action}
-                    onChange={(event) =>
-                      setAuditFilters((current) => ({
-                        ...current,
-                        action: event.target.value,
-                        page: 1,
-                      }))
-                    }
-                  >
-                    <option value="all">Tutte azioni</option>
-                    {auditActions.map((action) => (
-                      <option key={action} value={action}>
-                        {auditActionLabel(action)}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Log per pagina"
-                    value={auditFilters.pageSize}
-                    onChange={(event) =>
-                      setAuditFilters((current) => ({
-                        ...current,
-                        pageSize: Number(event.target.value),
-                        page: 1,
-                      }))
-                    }
-                  >
-                    {[20, 40, 100, 200].map((pageSize) => (
-                      <option key={pageSize} value={pageSize}>
-                        {pageSize} per pagina
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="audit-summary">
-                  <span>
-                    {filteredAuditLogs.length} log filtrati su {state.auditLogs.length}
-                  </span>
-                  <div className="audit-pagination">
-                    <button
-                      className="secondary-button"
-                      disabled={auditPage <= 1}
-                      type="button"
-                      onClick={() =>
-                        setAuditFilters((current) => ({
-                          ...current,
-                          page: Math.max(1, auditPage - 1),
-                        }))
-                      }
-                    >
-                      Precedente
-                    </button>
-                    <span>
-                      {auditPage}/{auditPageCount}
-                    </span>
-                    <button
-                      className="secondary-button"
-                      disabled={auditPage >= auditPageCount}
-                      type="button"
-                      onClick={() =>
-                        setAuditFilters((current) => ({
-                          ...current,
-                          page: Math.min(auditPageCount, auditPage + 1),
-                        }))
-                      }
-                    >
-                      Successiva
-                    </button>
-                  </div>
-                </div>
-                <List>
-                  {pagedAuditLogs.length > 0 ? (
-                    pagedAuditLogs.map((log) => (
-                      <div className="row compact audit-row" key={log.id}>
-                        <span>
-                          <strong>{auditActionLabel(log.action)}</strong>
-                          <small>{new Date(log.created_at).toLocaleString()}</small>
-                          <small>
-                            {log.actor_label ?? log.actor_type} · {log.entity_type}
-                            {log.entity_id ? ` · ${log.entity_id}` : ""}
-                          </small>
-                          <small>{auditDetailsText(log.details_json)}</small>
-                        </span>
-                        <Badge>{log.actor_type}</Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="empty">Nessun log per i filtri selezionati.</p>
-                  )}
-                </List>
-              </Panel>
+                <LogsTab
+                  auditLogs={state.auditLogs}
+                  filters={auditFilters}
+                  onFiltersChange={setAuditFilters}
+                />
               ) : null}
               </div>
             </>
@@ -2669,125 +2238,7 @@ function CriteriaRating({
   );
 }
 
-function Form({
-  children,
-  submitLabel,
-  onSubmit,
-  disabled,
-}: {
-  children: ReactNode;
-  submitLabel: string;
-  onSubmit: (form: HTMLFormElement) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <form
-      className="form"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (disabled) return;
-        onSubmit(event.currentTarget);
-      }}
-    >
-      {children}
-      <button type="submit" disabled={disabled}>{submitLabel}</button>
-    </form>
-  );
-}
 
-function CriterionForm({
-  onSubmit,
-  disabled,
-}: {
-  onSubmit: (form: HTMLFormElement) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Form submitLabel="Aggiungi criterio" onSubmit={onSubmit} disabled={disabled}>
-      <input name="name" placeholder="Nome criterio" required />
-      <div className="inline-grid">
-        <input name="min_score" type="number" defaultValue="1" />
-        <input name="max_score" type="number" defaultValue="10" />
-        <input name="weight" type="number" defaultValue="1" />
-      </div>
-    </Form>
-  );
-}
-
-function Panel({
-  title,
-  children,
-  action,
-  className,
-}: {
-  title: string;
-  children: ReactNode;
-  action?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={className ? `panel ${className}` : "panel"}>
-      <div className="panel-title">
-        <h2>{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function List({ children }: { children: ReactNode }) {
-  return <div className="list">{children}</div>;
-}
-
-function Badge({ children }: { children: ReactNode }) {
-  return <span className="badge">{children}</span>;
-}
-
-function Metric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function MiniTable({ rows }: { rows: string[][] }) {
-  if (rows.length === 0) {
-    return <p className="empty">Nessun dato.</p>;
-  }
-  return (
-    <div className="mini-table">
-      {rows.map((row, rowIndex) => (
-        <div className="mini-row" key={`${row.join("-")}-${rowIndex}`}>
-          {row.map((cell, cellIndex) => (
-            <span key={`${cell}-${cellIndex}`}>{cell}</span>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CriteriaList({ criteria }: { criteria: CriterionRead[] }) {
-  return (
-    <MiniTable
-      rows={criteria.map((criterion) => [
-        criterion.name,
-        `${criterion.min_score}-${criterion.max_score}`,
-        `x${criterion.weight}`,
-      ])}
-    />
-  );
-}
-
-function competitionNamesForJudge(judge: JudgeRead, competitions: CompetitionRead[]): string {
-  return judge.assigned_competition_ids
-    .map((competitionId) => competitions.find((competition) => competition.id === competitionId)?.name)
-    .filter((name): name is string => Boolean(name))
-    .join(", ");
-}
 
 function initialViewFromUrl(): AppView {
   const view = new URLSearchParams(window.location.search).get("view");
@@ -2796,141 +2247,4 @@ function initialViewFromUrl(): AppView {
 
 function initialEventIdFromUrl(): string {
   return new URLSearchParams(window.location.search).get("eventId") ?? "";
-}
-
-function screenModeLabel(mode: ScreenMode): string {
-  const labels: Record<ScreenMode, string> = {
-    idle: "Idle",
-    show_qr: "QR code",
-    voting_open: "Votazione aperta",
-    countdown: "Countdown",
-    show_results: "Risultati",
-    reveal_ranking: "Reveal",
-    show_podium: "Podio",
-    show_final_winners: "Finale",
-  };
-  return labels[mode];
-}
-
-function auditActionLabel(action: string): string {
-  const labels: Record<string, string> = {
-    admin_event_created: "Evento creato",
-    admin_event_updated: "Evento aggiornato",
-    admin_event_deleted: "Evento eliminato",
-    admin_competition_created: "Competizione creata",
-    admin_competition_updated: "Competizione aggiornata",
-    admin_competition_deleted: "Competizione eliminata",
-    admin_participant_created: "Partecipante creato",
-    admin_participant_updated: "Partecipante aggiornato",
-    admin_participant_deleted: "Partecipante eliminato",
-    admin_public_criterion_created: "Criterio pubblico creato",
-    admin_public_criterion_updated: "Criterio pubblico aggiornato",
-    admin_public_criterion_deleted: "Criterio pubblico eliminato",
-    admin_judge_criterion_created: "Criterio giudice creato",
-    admin_judge_criterion_updated: "Criterio giudice aggiornato",
-    admin_judge_criterion_deleted: "Criterio giudice eliminato",
-    admin_judge_created: "Giudice creato",
-    admin_judge_updated: "Giudice aggiornato",
-    admin_judge_deleted: "Giudice eliminato",
-    admin_judge_assigned: "Giudice assegnato",
-    admin_judge_access_code_regenerated: "Codice giudice rigenerato",
-    admin_judge_unassigned: "Giudice rimosso",
-    admin_voting_session_opened: "Votazione aperta",
-    admin_voting_session_closed: "Votazione chiusa",
-    admin_results_frozen: "Risultati congelati",
-    admin_screen_state_updated: "Schermo aggiornato",
-    public_access_granted: "Accesso pubblico",
-    public_vote_submitted: "Voto pubblico",
-    judge_access_granted: "Accesso giudice",
-    judge_vote_submitted: "Voto giudice",
-  };
-  return labels[action] ?? action.replace(/_/g, " ");
-}
-
-function auditDetailsText(details: Record<string, unknown>): string {
-  const entries = Object.entries(details).filter(
-    ([, value]) => value !== null && value !== undefined && value !== ""
-  );
-  if (!entries.length) {
-    return "Nessun dettaglio";
-  }
-  return entries
-    .map(([key, value]) => {
-      if (Array.isArray(value)) {
-        return `${key}: ${value.join(", ")}`;
-      }
-      if (typeof value === "object") {
-        return `${key}: ${JSON.stringify(value)}`;
-      }
-      return `${key}: ${String(value)}`;
-    })
-    .join(" · ");
-}
-
-function auditLogMatchesQuery(log: AuditLogRead, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return true;
-  }
-  const searchableText = [
-    auditActionLabel(log.action),
-    log.action,
-    log.actor_type,
-    log.actor_label,
-    log.entity_type,
-    log.entity_id,
-    log.competition_id,
-    auditDetailsText(log.details_json),
-    new Date(log.created_at).toLocaleString(),
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .toLowerCase();
-
-  return searchableText.includes(normalizedQuery);
-}
-
-function uniqueStringValues(values: string[]): string[] {
-  return Array.from(new Set(values)).sort((first, second) => first.localeCompare(second));
-}
-
-function formatPublicVoteMethod(method: PublicVoteMethod): string {
-  const labels: Record<PublicVoteMethod, string> = {
-    single_choice: "scelta singola",
-    ranked_choice: "classifica",
-    criteria_rating: "valutazione per criteri",
-  };
-  return labels[method];
-}
-
-function formatAccessMethod(method: AccessMethod): string {
-  const labels: Record<AccessMethod, string> = {
-    public_link: "link pubblico",
-    qr_pin: "QR + PIN",
-    private_link: "link privato",
-  };
-  return labels[method];
-}
-
-function textPayload(screenState: ScreenStateRead | null, key: string): string {
-  const value = screenState?.payload_json[key];
-  return typeof value === "string" ? value : "";
-}
-
-function numberPayload(screenState: ScreenStateRead | null, key: string, fallback: number): number {
-  const value = screenState?.payload_json[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function textValue(data: FormData, key: string): string {
-  return String(data.get(key) ?? "").trim();
-}
-
-function numberValue(data: FormData, key: string, fallback: number): number {
-  const value = Number(data.get(key));
-  return Number.isFinite(value) ? value : fallback;
-}
-
-function slugValue(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
