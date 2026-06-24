@@ -56,7 +56,17 @@ async function publicApi<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(payload.detail ?? response.statusText);
+    let msg = response.statusText;
+    if (payload.detail) {
+      if (typeof payload.detail === "string") {
+        msg = payload.detail;
+      } else if (Array.isArray(payload.detail)) {
+        msg = payload.detail.map((d: any) => `${d.loc?.join(".") || "error"}: ${d.msg}`).join("; ");
+      } else {
+        msg = JSON.stringify(payload.detail);
+      }
+    }
+    throw new Error(msg);
   }
   return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
 }
