@@ -132,13 +132,28 @@ export default function PublicVotePage() {
   const [voteError, setVoteError] = useState("");
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const listPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── mount: restore session from localStorage ─────────────────────────────────
   useEffect(() => {
     void restoreSession();
   }, []);
 
-  useEffect(() => () => stopPolling(), []);
+  useEffect(() => {
+    return () => {
+      stopPolling();
+      stopListPolling();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phase === "list" && session) {
+      startListPolling(session);
+    } else {
+      stopListPolling();
+    }
+    return () => stopListPolling();
+  }, [phase, session]);
 
   async function restoreSession() {
     const stored = loadVoterSession();
@@ -235,13 +250,46 @@ export default function PublicVotePage() {
           )
         );
       } catch { /* ignore */ }
-    }, 5000);
+    }, 3000);
   }
 
   function stopPolling() {
     if (pollingRef.current !== null) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
+    }
+  }
+
+  // ── polling per aggiornare lo stato di tutte le competizioni nella lista ─────
+  function startListPolling(sess: VoterSession) {
+    stopListPolling();
+    listPollingRef.current = setInterval(async () => {
+      try {
+        const comps = await publicApi<Competition[]>(`/api/events/${sess.eventId}/competitions`);
+        const votable = comps.filter((c) => c.public_voting_enabled);
+        const sessionLists = await Promise.all(
+          votable.map((c) =>
+            publicApi<VotingSession[]>(`/api/competitions/${c.id}/voting-sessions`).catch(() => [])
+          )
+        );
+        setEntries((prev) => {
+          return votable.map((c, i) => {
+            const prevEntry = prev.find((e) => e.competition.id === c.id);
+            return {
+              competition: c,
+              votingState: getVotingState(sessionLists[i]),
+              voted: prevEntry ? prevEntry.voted : false,
+            };
+          });
+        });
+      } catch { /* ignore */ }
+    }, 3000);
+  }
+
+  function stopListPolling() {
+    if (listPollingRef.current !== null) {
+      clearInterval(listPollingRef.current);
+      listPollingRef.current = null;
     }
   }
 
