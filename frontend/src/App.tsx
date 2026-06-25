@@ -1,6 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
-import QRCode from "qrcode";
-
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { participantBackdrop, publicVoteHref } from "./public-vote/publicVote";
 import { podiumAssets, podiumDisplayOrder, podiumPercent } from "./screen/podium";
 import { GoldDustCanvas } from "./screen/GoldDustCanvas";
@@ -263,8 +261,7 @@ export default function App() {
   );
   const revealMode =
     state.screenState?.mode === "reveal_ranking" ||
-    state.screenState?.mode === "show_podium" ||
-    state.screenState?.mode === "show_final_winners"
+    state.screenState?.mode === "show_podium"
       ? (state.screenState.mode as RevealMode)
       : null;
   const revealMaximum = revealMode
@@ -1104,13 +1101,9 @@ export default function App() {
                 >
                   <select name="mode" defaultValue={state.screenState?.mode ?? "idle"}>
                     <option value="idle">Idle</option>
-                    <option value="show_qr">QR code</option>
-                    <option value="voting_open">Votazione aperta</option>
                     <option value="countdown">Countdown</option>
-                    <option value="show_results">Risultati</option>
                     <option value="reveal_ranking">Reveal classifica</option>
                     <option value="show_podium">Podio</option>
-                    <option value="show_final_winners">Finale</option>
                   </select>
                   <input
                     name="title"
@@ -1459,12 +1452,55 @@ function getMockTrend(id: string) {
   return { dir: "neutral" as const, val: "—" };
 }
 
+function IdleFogBackground() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let effect: { destroy: () => void } | null = null;
+
+    async function startFog() {
+      const [{ default: FOG }, THREE] = await Promise.all([
+        import("vanta/dist/vanta.fog.min"),
+        import("three"),
+      ]);
+
+      if (cancelled || !containerRef.current) return;
+
+      effect = FOG({
+        el: containerRef.current,
+        THREE,
+        mouseControls: false,
+        touchControls: false,
+        gyroControls: false,
+        minHeight: 420,
+        minWidth: 420,
+        highlightColor: 0xffe2a1,
+        midtoneColor: 0x9a6c2e,
+        lowlightColor: 0x050506,
+        baseColor: 0x090806,
+        blurFactor: 0.42,
+        speed: 1.15,
+        zoom: 0.74,
+      });
+    }
+
+    void startFog();
+
+    return () => {
+      cancelled = true;
+      effect?.destroy();
+    };
+  }, []);
+
+  return <div className="idle-fog-background" ref={containerRef} aria-hidden="true" />;
+}
+
 function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
   const [state, setState] = useState<ScreenAreaState>({
     ...emptyScreenAreaState,
     eventId: initialEventIdFromUrl(),
   });
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [lastUpdatedTime, setLastUpdatedTime] = useState("");
 
@@ -1473,14 +1509,11 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
     textPayload(state.screenState, "title") ||
     state.competition?.name ||
     "Contest Voting Platform";
-  const voteUrl =
-    textPayload(state.screenState, "public_vote_url") || `${window.location.origin} - ID ${state.competition?.id ?? ""}`;
   const countdownSeconds = numberPayload(state.screenState, "countdown_seconds", 0);
   const allRanking = state.results?.results ?? [];
   const screenRevealMode =
     state.screenState?.mode === "reveal_ranking" ||
-    state.screenState?.mode === "show_podium" ||
-    state.screenState?.mode === "show_final_winners"
+    state.screenState?.mode === "show_podium"
       ? (state.screenState.mode as RevealMode)
       : null;
   const screenRevealCount = numberPayload(state.screenState, "reveal_upto", 0);
@@ -1488,11 +1521,9 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
     screenRevealMode === "reveal_ranking"
       ? visibleRevealedResults(allRanking, screenRevealMode, screenRevealCount)
       : allRanking;
-  const podiumMode =
-    state.screenState?.mode === "show_podium" ||
-    state.screenState?.mode === "show_final_winners";
+  const podiumMode = state.screenState?.mode === "show_podium";
   const visiblePodium =
-    screenRevealMode === "show_podium" || screenRevealMode === "show_final_winners"
+    screenRevealMode === "show_podium"
       ? visibleRevealedResults(allRanking, screenRevealMode, screenRevealCount)
       : allRanking.slice(0, 3);
   const totalFinalScore = allRanking.reduce((total, result) => total + result.final_score, 0);
@@ -1503,29 +1534,31 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
 
   if (!headingTitle) {
     const mode = state.screenState?.mode;
-    if (mode === "show_podium" || mode === "show_final_winners") {
+    if (mode === "show_podium") {
       headingTitle = "Podio finale";
-    } else if (mode === "show_qr") {
-      headingTitle = "Inquadra e Vota";
-    } else if (mode === "voting_open" || mode === "countdown") {
-      headingTitle = "Votazioni Aperte";
+    } else if (mode === "countdown") {
+      headingTitle = "Sessione di voto";
     } else {
-      headingTitle = state.competition?.status === "revealed" ? "Classifica finale" : "Classifica progressiva";
+      headingTitle = "";
     }
   }
 
   if (!headingSubtitle) {
     const mode = state.screenState?.mode;
-    if (mode === "show_podium" || mode === "show_final_winners") {
+    if (mode === "show_podium" || mode === "countdown") {
       headingSubtitle = "";
-    } else if (mode === "show_qr") {
-      headingSubtitle = "Partecipa alla votazione pubblica";
-    } else if (mode === "voting_open" || mode === "countdown") {
-      headingSubtitle = "Sostieni i tuoi preferiti in tempo reale";
     } else {
-      headingSubtitle = state.competition?.status === "revealed" ? "Risultati ufficiali della competizione" : "Aggiornamento live della serata";
+      headingSubtitle = "";
     }
   }
+
+  const countdownValue = Math.max(0, remainingSeconds ?? countdownSeconds);
+  const countdownMinutes = Math.floor(countdownValue / 60);
+  const countdownRemainder = countdownValue % 60;
+  const countdownLabel =
+    countdownMinutes > 0
+      ? `${countdownMinutes}:${String(countdownRemainder).padStart(2, "0")}`
+      : String(countdownRemainder);
 
   async function run(action: () => Promise<void>, doneMessage: string) {
     try {
@@ -1596,18 +1629,6 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
   }, [state.activeEventId]);
 
   useEffect(() => {
-    if (!voteUrl.trim()) {
-      setQrCodeDataUrl("");
-      return;
-    }
-    void QRCode.toDataURL(voteUrl, {
-      margin: 1,
-      width: 360,
-      color: { dark: "#112736", light: "#ffffff" },
-    }).then(setQrCodeDataUrl);
-  }, [voteUrl]);
-
-  useEffect(() => {
     const mode = state.screenState?.mode;
     const initialSeconds = numberPayload(state.screenState, "countdown_seconds", 0);
 
@@ -1646,8 +1667,11 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
       ) : null}
 
       <section className={`stage stage-${state.screenState?.mode ?? "idle"}`}>
-        {(state.screenState?.mode === "show_podium" || state.screenState?.mode === "show_final_winners") ? (
+        {state.screenState?.mode === "show_podium" ? (
           <GoldDustCanvas />
+        ) : null}
+        {(state.screenState?.mode === "idle" || !state.screenState) ? (
+          <IdleFogBackground />
         ) : null}
         <div className="stage-decor-frame" />
 
@@ -1677,39 +1701,33 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
         </div>
 
         <div className="stage-content">
-          {state.screenState?.mode === "show_qr" ? (
-            <div className="qr-layout">
-              <div className="qr-code" aria-label="QR code">
-                {qrCodeDataUrl ? <img alt="QR code voto pubblico" src={qrCodeDataUrl} /> : null}
+          {state.screenState?.mode === "countdown" ? (
+            <div className="countdown-stage">
+              <div className="countdown-orbit" aria-hidden="true">
+                <span />
+                <span />
+                <span />
               </div>
-              <div>
-                <h3>Vota ora</h3>
-                <p>{voteUrl}</p>
-                <strong>{state.competition?.id ?? ""}</strong>
+              <div className="countdown-main">
+                <strong className="countdown-number">{countdownLabel}</strong>
+                <span className="countdown-unit">
+                  {countdownMinutes > 0 ? "minuti" : "secondi"}
+                </span>
               </div>
-            </div>
-          ) : null}
-
-          {state.screenState?.mode === "voting_open" || state.screenState?.mode === "countdown" ? (
-            <div className="live-vote">
-              <div>
-                <span>Voti ricevuti</span>
-                <strong>{state.summary?.total_votes ?? 0}</strong>
-              </div>
-              <div>
-                <span>Sessione</span>
-                <strong>{openSession ? "aperta" : "chiusa"}</strong>
-              </div>
-              {state.screenState?.mode === "countdown" ? (
+              <div className="countdown-meta">
                 <div>
-                  <span>Countdown</span>
-                  <strong>{remainingSeconds ?? countdownSeconds}s</strong>
+                  <span>Voti ricevuti</span>
+                  <strong>{state.summary?.total_votes ?? 0}</strong>
                 </div>
-              ) : null}
+                <div>
+                  <span>Sessione</span>
+                  <strong>{openSession ? "Aperta" : "In attesa..."}</strong>
+                </div>
+              </div>
             </div>
           ) : null}
 
-          {(state.screenState?.mode === "show_results" || state.screenState?.mode === "reveal_ranking") ? (
+          {state.screenState?.mode === "reveal_ranking" ? (
             ranking.length === 0 ? (
               <div className="stage-idle">In attesa della prossima posizione.</div>
             ) : (
@@ -1718,7 +1736,7 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
                 const trend = getMockTrend(result.participant_id);
                 const totalFinalScore = allRanking.reduce((acc, r) => acc + r.final_score, 0) || 1;
                 const percent = ((result.final_score / totalFinalScore) * 100).toFixed(2).replace('.', ',');
-                const votes = result.public_score.raw_score || Math.round(result.final_score * 3.5);
+                const votes = result.public_votes || Math.round(result.final_score * 3.5);
 
                 return (
                   <li key={result.participant_id} className={`rank-item-${result.rank}`}>
@@ -1752,7 +1770,7 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
             )
           ) : null}
 
-          {(state.screenState?.mode === "show_podium" || state.screenState?.mode === "show_final_winners") ? (
+          {state.screenState?.mode === "show_podium" ? (
             <div className="podium-section">
               {visiblePodium.length ? (
                 <div className="podium">
@@ -1831,7 +1849,27 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
           ) : null}
 
           {(state.screenState?.mode === "idle" || !state.screenState) ? (
-            <div className="stage-idle">In attesa del comando admin.</div>
+            <div className="stage-idle-show">
+              <div className="idle-show-motion" aria-hidden="true">
+                <span className="idle-sweep idle-sweep-a" />
+                <span className="idle-sweep idle-sweep-b" />
+                <span className="idle-spark idle-spark-1" />
+                <span className="idle-spark idle-spark-2" />
+                <span className="idle-spark idle-spark-3" />
+                <span className="idle-spark idle-spark-4" />
+                <span className="idle-spark idle-spark-5" />
+                <span className="idle-spark idle-spark-6" />
+              </div>
+              <div className="idle-show-content">
+                <img
+                  src="/quasanremo/brand/quasanremo_logo.png"
+                  className="idle-show-logo"
+                  alt="Quasanremo"
+                />
+                <p>La serata sta per continuare</p>
+                <h3>{state.competition?.name ?? "Benvenuti alla serata"}</h3>
+              </div>
+            </div>
           ) : null}
         </div>
       </section>
