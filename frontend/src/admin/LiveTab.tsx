@@ -13,7 +13,6 @@ type Props = {
   onGoLive: () => Promise<void>;
   onOpenVoting: (form: HTMLFormElement) => Promise<void>;
   onCloseVoting: () => Promise<void>;
-  onFreeze: () => Promise<void>;
 };
 
 const setupIssueMap: Record<string, string> = {
@@ -25,9 +24,7 @@ const setupIssueMap: Record<string, string> = {
   missing_assigned_judges: "Mancano giudici attivi assegnati",
   missing_judge_criteria: "Mancano i criteri di voto per i giudici",
   missing_public_criteria: "Mancano i criteri di voto per il pubblico",
-  missing_access_pin: "Manca il PIN per accesso QR/PIN",
   event_not_live: "Evento non ancora live",
-  competition_results_final: "Risultati già finali",
   missing_competitions: "Crea almeno una competizione",
 };
 
@@ -42,7 +39,6 @@ export function LiveTab({
   onGoLive,
   onOpenVoting,
   onCloseVoting,
-  onFreeze,
 }: Props) {
   if (!competition) return <p className="empty">Seleziona una competizione.</p>;
   const openSession = sessions.find((session) => session.status === "open");
@@ -95,9 +91,6 @@ export function LiveTab({
             onClick={onCloseVoting}
           >
             Chiudi votazione
-          </button>
-          <button type="button" onClick={onFreeze}>
-            Freeze risultati
           </button>
         </div>
         <MiniTable

@@ -1,6 +1,6 @@
 // frontend/src/admin/components.tsx
 import { ReactNode, FormEvent } from "react";
-import type { CriterionRead, JudgeRead, CompetitionRead, ScreenStateRead, AuditLogRead, PublicVoteMethod, AccessMethod, ScreenMode } from "./types";
+import type { CriterionRead, JudgeRead, CompetitionRead, ScreenStateRead, AuditLogRead, PublicVoteMethod, ScreenMode } from "./types";
 
 export function Form({
   children,
@@ -223,15 +223,6 @@ export function formatPublicVoteMethod(method: PublicVoteMethod): string {
     single_choice: "scelta singola",
     ranked_choice: "classifica",
     criteria_rating: "valutazione per criteri",
-  };
-  return labels[method];
-}
-
-export function formatAccessMethod(method: AccessMethod): string {
-  const labels: Record<AccessMethod, string> = {
-    public_link: "link pubblico",
-    qr_pin: "QR + PIN",
-    private_link: "link privato",
   };
   return labels[method];
 }

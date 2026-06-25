@@ -5,7 +5,7 @@ from hashlib import sha256
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AccessMethod, Competition, CompetitionJudge, Judge, VoterAccount
+from app.models import Competition, CompetitionJudge, Judge, VoterAccount
 from app.models.mixins import utc_now
 
 _VOTER_CODE_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -68,19 +68,6 @@ def verify_judge_access(
         raise JudgeAccessError("invalid judge credentials", status_code=403)
     return judge
 
-
-def verify_public_competition_access(
-    db: Session,
-    competition_id: str,
-    pin: str | None = None,
-) -> Competition:
-    competition = db.get(Competition, competition_id)
-    if competition is None:
-        raise PublicAccessError("competition not found", status_code=404)
-    if competition.access_method is AccessMethod.QR_PIN:
-        if not pin or competition.access_pin_hash != hash_secret(pin):
-            raise PublicAccessError("invalid competition pin", status_code=403)
-    return competition
 
 
 def list_judge_competitions(db: Session, judge_id: str, access_code: str) -> list[Competition]:

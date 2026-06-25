@@ -20,7 +20,6 @@ from app.services.access_service import JudgeAccessError, PublicAccessError, Vot
 from app.services.admin_service import AdminStateError, ResourceNotFound
 from app.services.judge_vote_service import JudgeVoteError
 from app.services.public_vote_service import PublicVoteError
-from app.services.scoring_service import ResultsFreezeError
 from app.services.screen_service import ScreenStateError
 from app.services.voting_service import VotingStateError
 
@@ -111,12 +110,7 @@ def create_app() -> FastAPI:
     ) -> JSONResponse:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
-    @app.exception_handler(ResultsFreezeError)
-    async def results_freeze_error_handler(
-        _request: Request,
-        exc: ResultsFreezeError,
-    ) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+
 
     @app.exception_handler(ScreenStateError)
     async def screen_state_error_handler(

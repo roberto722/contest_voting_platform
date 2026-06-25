@@ -136,7 +136,7 @@ def test_final_competition_cannot_be_reopened(client: TestClient, db_session: Se
     # Impostiamo manualmente lo stato nel database
     from app.models import Competition, CompetitionStatus
     comp = db_session.get(Competition, competition_id)
-    comp.status = CompetitionStatus.RESULTS_FROZEN
+    comp.status = CompetitionStatus.REVEALED
     db_session.commit()
 
     response = client.post(
@@ -209,31 +209,6 @@ def test_competition_cannot_open_if_not_ready(client: TestClient) -> None:
     )
     assert response.status_code == 409
     assert "missing_public_criteria" in response.json()["issues"]
-
-
-def test_competition_requires_qr_pin_for_voting(client: TestClient) -> None:
-    event_id = client.post("/api/events", json={"name": "Serata Live"}).json()["id"]
-    comp_id = client.post(
-        f"/api/events/{event_id}/competitions",
-        json={
-            "name": "QR senza PIN",
-            "judge_voting_enabled": False,
-            "access_method": "qr_pin",
-        },
-    ).json()["id"]
-    for index in range(1, 3):
-        client.post(
-            f"/api/competitions/{comp_id}/participants",
-            json={"name": f"p{index}", "display_name": f"P{index}"},
-        )
-
-    response = client.post(
-        f"/api/competitions/{comp_id}/voting-sessions",
-        json={"label": "Fail"},
-    )
-
-    assert response.status_code == 409
-    assert "missing_access_pin" in response.json()["issues"]
 
 
 def test_competition_opens_only_after_complete_setup_and_live_event(client: TestClient) -> None:

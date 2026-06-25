@@ -5,14 +5,12 @@ import { Panel } from "./components";
 type Props = {
   results: ResultsRead | null;
   competition: CompetitionRead | null;
-  onFreeze: () => Promise<void>;
   onRefresh: () => Promise<void>;
 };
 
 export function ResultsTab({
   results,
   competition,
-  onFreeze,
   onRefresh,
 }: Props) {
   if (!competition) return <p className="empty">Seleziona una competizione.</p>;
@@ -22,9 +20,6 @@ export function ResultsTab({
       <div className="button-strip" style={{ marginBottom: "16px" }}>
         <button type="button" onClick={onRefresh}>
           Aggiorna risultati
-        </button>
-        <button type="button" onClick={onFreeze}>
-          Congela risultati (Freeze)
         </button>
       </div>
       {results && results.results.length > 0 ? (

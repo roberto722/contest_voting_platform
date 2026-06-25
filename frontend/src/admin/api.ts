@@ -12,7 +12,6 @@ const setupIssueMap: Record<string, string> = {
   missing_assigned_judges: "Mancano giudici attivi assegnati",
   missing_judge_criteria: "Mancano i criteri di voto per i giudici",
   missing_public_criteria: "Mancano i criteri di voto per il pubblico",
-  missing_access_pin: "Manca il PIN per accesso QR/PIN",
   event_not_live: "Evento non ancora live",
   competition_results_final: "Risultati già finali",
   missing_competitions: "Crea almeno una competizione",

@@ -178,9 +178,6 @@ def delete_event(db: Session, event_id: str) -> None:
 def create_competition(db: Session, event_id: str, data: dict[str, Any]) -> Competition:
     event = get_event(db, event_id)
     _ensure_event_configuration_editable(event)
-    access_pin = data.pop("access_pin", None)
-    if access_pin:
-        data["access_pin_hash"] = hash_secret(access_pin)
     competition = _save(db, Competition(event=event, **data))
     refresh_competition_status(db, competition.id)
     _audit(
@@ -217,9 +214,6 @@ def get_competition(db: Session, competition_id: str) -> Competition:
 def update_competition(db: Session, competition_id: str, data: dict[str, Any]) -> Competition:
     competition = get_competition(db, competition_id)
     _ensure_competition_configuration_editable(competition)
-    access_pin = data.pop("access_pin", None)
-    if access_pin:
-        data["access_pin_hash"] = hash_secret(access_pin)
     competition = _update(db, competition, data)
     refresh_competition_status(db, competition.id)
     _audit(

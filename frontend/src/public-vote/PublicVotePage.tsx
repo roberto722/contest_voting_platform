@@ -306,11 +306,10 @@ export default function PublicVotePage() {
         setEntries((prev) => {
           return votable.map((c, i) => {
             const prevEntry = prev.find((e) => e.competition.id === c.id);
-            const wasVoted = prevEntry ? prevEntry.voted : false;
             return {
               competition: c,
               votingState: getVotingState(sessionLists[i]),
-              voted: statusList[i].has_voted || wasVoted,
+              voted: statusList[i].has_voted,
             };
           });
         });
@@ -340,7 +339,7 @@ export default function PublicVotePage() {
           { headers: voterAuthHeaders(sess) }
         ).catch(() => ({ excluded_participant_id: null })),
       ]);
-      const activeParts = parts.filter((p) => p.active && p.id !== selfExcl.excluded_participant_id);
+      const activeParts = parts.filter((p) => p.active);
       const activeCrit = crit.filter((c) => c.active);
       const entry = entries.find((e) => e.competition.id === competitionId);
       const maxVotes = entry?.competition.max_votes_per_user ?? 1;
@@ -349,14 +348,34 @@ export default function PublicVotePage() {
       setCriteria(activeCrit);
       setVotingSessions(slist);
       setSelfExcludedId(selfExcl.excluded_participant_id);
-      setSelectedParticipantId(activeParts[0]?.id ?? "");
-      setRankedParticipantIds(activeParts.slice(0, maxVotes).map((p) => p.id));
+      setSelectedParticipantId("");
+      setRankedParticipantIds([]);
       setCriteriaScores(Object.fromEntries(activeCrit.map((c) => [c.id, c.min_score])));
       setPhase("voting");
       startPolling(competitionId);
     } catch (err) {
       setVoteError(err instanceof Error ? err.message : "Errore caricamento");
       setPhase("list");
+    }
+  }
+
+  function handleParticipantClick(pid: string) {
+    if (pid === selfExcludedId) return;
+
+    if (useMultipleSelection) {
+      setRankedParticipantIds((prev) => {
+        const index = prev.indexOf(pid);
+        if (index !== -1) {
+          return prev.filter((id) => id !== pid);
+        } else {
+          if (prev.length < maxVotes) {
+            return [...prev, pid];
+          }
+          return prev;
+        }
+      });
+    } else {
+      setSelectedParticipantId((prev) => (prev === pid ? "" : pid));
     }
   }
 
@@ -375,7 +394,7 @@ export default function PublicVotePage() {
           criterion_id: c.id,
           score: criteriaScores[c.id] ?? c.min_score,
         })),
-      });
+      }, entry.competition.max_votes_per_user);
       await publicApi(`/api/competitions/${activeCompetitionId}/public-votes`, {
         method: "POST",
         headers: voterAuthHeaders(session),
@@ -402,11 +421,16 @@ export default function PublicVotePage() {
 
   // ── derived ───────────────────────────────────────────────────────────────────
   const activeEntry = entries.find((e) => e.competition.id === activeCompetitionId) ?? null;
+  const maxVotes = activeEntry?.competition.max_votes_per_user ?? 1;
+  const useMultipleSelection = activeEntry
+    ? activeEntry.competition.public_vote_method === "ranked_choice" ||
+      (activeEntry.competition.public_vote_method === "single_choice" && maxVotes > 1)
+    : false;
+
   const currentVotingState = getVotingState(votingSessions);
-  const canSubmit =
-    activeEntry?.competition.public_vote_method === "ranked_choice"
-      ? rankedParticipantIds.some(Boolean)
-      : Boolean(selectedParticipantId);
+  const canSubmit = useMultipleSelection
+    ? rankedParticipantIds.length > 0
+    : Boolean(selectedParticipantId);
   const allVoted =
     entries.length > 0 && entries.every((e) => e.voted || e.votingState !== "open");
 
@@ -581,18 +605,39 @@ export default function PublicVotePage() {
                   </p>
                 )}
 
-                {activeEntry.competition.public_vote_method !== "ranked_choice" ? (
-                  <div className="public-participants">
-                    {participants.map((p, index) => (
+                {activeEntry.competition.public_vote_method === "ranked_choice" && (
+                  <p className="public-self-note" style={{ background: "rgba(213, 165, 85, 0.15)", borderColor: "#d5a555" }}>
+                    ℹ️ Seleziona fino a {activeEntry.competition.max_votes_per_user} candidati in ordine di preferenza. Clicca di nuovo per deselezionare.
+                  </p>
+                )}
+
+                {activeEntry.competition.public_vote_method === "single_choice" && maxVotes > 1 && (
+                  <p className="public-self-note" style={{ background: "rgba(213, 165, 85, 0.15)", borderColor: "#d5a555" }}>
+                    ℹ️ Seleziona fino a {maxVotes} candidati. Clicca di nuovo per deselezionare.
+                  </p>
+                )}
+
+                <div className="public-participants">
+                  {participants.map((p, index) => {
+                    const isSelected = useMultipleSelection
+                      ? rankedParticipantIds.includes(p.id)
+                      : p.id === selectedParticipantId;
+
+                    const rankIndex = useMultipleSelection
+                      ? rankedParticipantIds.indexOf(p.id)
+                      : -1;
+
+                    return (
                       <button
-                        aria-pressed={p.id === selectedParticipantId}
+                        disabled={p.id === selfExcludedId}
+                        aria-pressed={isSelected}
                         className={
-                          p.id === selectedParticipantId
+                          isSelected
                             ? "public-participant selected"
                             : "public-participant"
                         }
                         key={p.id}
-                        onClick={() => setSelectedParticipantId(p.id)}
+                        onClick={() => handleParticipantClick(p.id)}
                         style={
                           {
                             "--participant-bg": `url(${participantBackdrop(index)})`,
@@ -601,41 +646,18 @@ export default function PublicVotePage() {
                         type="button"
                       >
                         <span className="public-number">{String(index + 1).padStart(2, "0")}</span>
-                        <span>{p.display_name}</span>
-                        {p.id === selectedParticipantId ? <b aria-hidden="true">✓</b> : null}
+                        <span>{p.display_name}{p.id === selfExcludedId ? " (Non puoi votarti)" : ""}</span>
+                        {isSelected ? (
+                          <b aria-hidden="true">
+                            {activeEntry.competition.public_vote_method === "ranked_choice" && rankIndex !== -1
+                              ? `${rankIndex + 1}°`
+                              : "✓"}
+                          </b>
+                        ) : null}
                       </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="public-ranked">
-                    {rankedParticipantIds.map((pid, index) => (
-                      <label key={index}>
-                        <span>Posizione {index + 1}</span>
-                        <select
-                          value={pid}
-                          onChange={(e) => {
-                            const next = [...rankedParticipantIds];
-                            next[index] = e.target.value;
-                            setRankedParticipantIds(next);
-                          }}
-                        >
-                          <option value="">Seleziona</option>
-                          {participants.map((p) => (
-                            <option
-                              disabled={
-                                rankedParticipantIds.includes(p.id) && pid !== p.id
-                              }
-                              key={p.id}
-                              value={p.id}
-                            >
-                              {p.display_name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
 
                 {activeEntry.competition.public_vote_method === "criteria_rating" && (
                   <div className="public-criteria">

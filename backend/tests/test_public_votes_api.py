@@ -141,46 +141,6 @@ def test_public_vote_requires_open_session_and_blocks_duplicates(client: TestCli
     assert duplicate.status_code == 409
 
 
-def test_public_access_validates_qr_pin(client: TestClient) -> None:
-    event_id = client.post("/api/events", json={"name": "Serata Live"}).json()["id"]
-    public_link_competition_id = client.post(
-        f"/api/events/{event_id}/competitions",
-        json={"name": "Link pubblico"},
-    ).json()["id"]
-    pin_competition_id = client.post(
-        f"/api/events/{event_id}/competitions",
-        json={
-            "name": "QR PIN",
-            "access_method": "qr_pin",
-            "access_pin": "1234",
-        },
-    ).json()["id"]
-
-    public_link = client.post(
-        f"/api/competitions/{public_link_competition_id}/public-access",
-        json={},
-    )
-    missing_pin = client.post(
-        f"/api/competitions/{pin_competition_id}/public-access",
-        json={},
-    )
-    wrong_pin = client.post(
-        f"/api/competitions/{pin_competition_id}/public-access",
-        json={"pin": "0000"},
-    )
-    valid_pin = client.post(
-        f"/api/competitions/{pin_competition_id}/public-access",
-        json={"pin": "1234"},
-    )
-
-    assert public_link.status_code == 200
-    assert public_link.json()["access_granted"] is True
-    assert missing_pin.status_code == 403
-    assert wrong_pin.status_code == 403
-    assert valid_pin.status_code == 200
-    assert valid_pin.json()["access_method"] == "qr_pin"
-
-
 def test_public_vote_update_replaces_previous_vote_when_allowed(client: TestClient) -> None:
     event_id, competition_id, participant_ids, voters = _create_competition(client, allow_vote_update=True)
     voter_id, token = voters[0]
@@ -403,3 +363,118 @@ def test_non_self_vote_allowed(client: TestClient) -> None:
         headers={"X-Voter-Account-Id": va_id, "X-Voter-Access-Token": token},
     )
     assert resp.status_code == 201
+
+
+def test_public_vote_multiple_selection_single_choice(client: TestClient) -> None:
+    # 1. Create event, competition, and participants manually
+    event_id = client.post("/api/events", json={"name": "Serata Live Multiple"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Contest Multiple",
+            "public_vote_method": "single_choice",
+            "allow_vote_update": False,
+            "max_votes_per_user": 2,
+            "max_votes_per_competition": 1,
+            "judge_voting_enabled": False,
+        },
+    ).json()["id"]
+
+    participant_ids = [
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": name.lower(), "display_name": name},
+        ).json()["id"]
+        for name in ["Anna", "Marco", "Luca"]
+    ]
+
+    # Pre-create voter 1, voter 2, and voter 3 while in DRAFT status
+    voter1_id, token1 = _create_voter_account(client, event_id, name="Votante 1")
+    voter2_id, token2 = _create_voter_account(client, event_id, name="Votante 2")
+    voter3_id, token3 = _create_voter_account(client, event_id, name="Votante 3")
+
+    # Link voter 2 to Anna (participant_ids[0]) BEFORE going live
+    link_resp = client.post(
+        f"/api/voter-accounts/{voter2_id}/link-participant",
+        json={"participant_id": participant_ids[0]},
+    )
+    assert link_resp.status_code == 200
+
+    # Go live
+    live_response = client.patch(f"/api/events/{event_id}", json={"status": "live"})
+    assert live_response.status_code == 200
+
+    _open_voting(client, competition_id)
+
+    # 2. Valid multiple selection vote (voter 1 votes for Anna and Marco)
+    headers1 = {
+        "X-Voter-Account-Id": voter1_id,
+        "X-Voter-Access-Token": token1,
+    }
+    resp = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        json={
+            "method": "single_choice",
+            "ranked_participant_ids": [participant_ids[0], participant_ids[1]],
+        },
+        headers=headers1,
+    )
+    assert resp.status_code == 201
+    votes = resp.json()["votes"]
+    assert len(votes) == 2
+    assert votes[0]["value"] == 1
+    assert votes[1]["value"] == 1
+    assert votes[0]["rank_position"] is None
+    assert votes[1]["rank_position"] is None
+
+    # Check total votes in summary
+    summary = client.get(f"/api/competitions/{competition_id}/public-votes/summary")
+    assert summary.status_code == 200
+    assert summary.json()["total_votes"] == 2
+
+    # 3. Use voter 3 to test validation errors (voter 3 is not linked, so won't trigger self-vote check)
+    headers3 = {
+        "X-Voter-Account-Id": voter3_id,
+        "X-Voter-Access-Token": token3,
+    }
+
+    # Vote exceeding max_votes_per_user (3 participants selected, max is 2)
+    resp_excess = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        json={
+            "method": "single_choice",
+            "ranked_participant_ids": [participant_ids[0], participant_ids[1], participant_ids[2]],
+        },
+        headers=headers3,
+    )
+    assert resp_excess.status_code == 400
+    assert "exceeds max_votes_per_user" in resp_excess.json()["detail"].lower()
+
+    # Vote with duplicates
+    resp_dup = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        json={
+            "method": "single_choice",
+            "ranked_participant_ids": [participant_ids[0], participant_ids[0]],
+        },
+        headers=headers3,
+    )
+    assert resp_dup.status_code == 400
+    assert "duplicate" in resp_dup.json()["detail"].lower()
+
+    # 4. Test self-vote block for multiple selection under single choice (voter 2 is Anna, cannot vote for Anna)
+    headers2 = {
+        "X-Voter-Account-Id": voter2_id,
+        "X-Voter-Access-Token": token2,
+    }
+    resp_self = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        json={
+            "method": "single_choice",
+            "ranked_participant_ids": [participant_ids[0], participant_ids[1]],
+        },
+        headers=headers2,
+    )
+    assert resp_self.status_code == 409
+    assert "cannot vote for themselves" in resp_self.json()["detail"].lower()
+

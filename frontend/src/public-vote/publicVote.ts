@@ -76,8 +76,11 @@ export function participantBackdrop(index: number): string {
 /**
  * Builds the vote payload for the backend — no voter_token, auth goes in headers.
  */
-export function buildVotePayload(method: PublicVoteMethod, selection: VoteSelection) {
+export function buildVotePayload(method: PublicVoteMethod, selection: VoteSelection, maxVotes?: number) {
   if (method === "single_choice") {
+    if (maxVotes && maxVotes > 1) {
+      return { method, ranked_participant_ids: selection.rankedParticipantIds.filter(Boolean) };
+    }
     return { method, participant_id: selection.participantId };
   }
   if (method === "ranked_choice") {

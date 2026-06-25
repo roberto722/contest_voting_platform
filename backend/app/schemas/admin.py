@@ -3,7 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import (
-    AccessMethod,
     CompetitionStatus,
     EventStatus,
     PublicVoteMethod,
@@ -40,8 +39,6 @@ class CompetitionCreate(BaseModel):
     public_vote_method: PublicVoteMethod = PublicVoteMethod.SINGLE_CHOICE
     public_weight: float = 50
     judge_weight: float = 50
-    access_method: AccessMethod = AccessMethod.PUBLIC_LINK
-    access_pin: str | None = None
     max_votes_per_user: int = 1
     max_votes_per_competition: int = 1
     allow_vote_update: bool = False
@@ -56,8 +53,6 @@ class CompetitionUpdate(BaseModel):
     public_vote_method: PublicVoteMethod | None = None
     public_weight: float | None = None
     judge_weight: float | None = None
-    access_method: AccessMethod | None = None
-    access_pin: str | None = None
     max_votes_per_user: int | None = None
     max_votes_per_competition: int | None = None
     allow_vote_update: bool | None = None
@@ -76,7 +71,6 @@ class CompetitionRead(BaseModel):
     public_vote_method: PublicVoteMethod
     public_weight: float
     judge_weight: float
-    access_method: AccessMethod
     max_votes_per_user: int
     max_votes_per_competition: int
     allow_vote_update: bool

@@ -20,17 +20,6 @@ class PublicVoteSubmit(BaseModel):
     ratings: list[PublicCriteriaRatingInput] | None = None
 
 
-class PublicCompetitionAccess(BaseModel):
-    pin: str | None = Field(default=None, max_length=255)
-
-
-class PublicCompetitionAccessRead(BaseModel):
-    competition_id: str
-    event_id: str
-    access_method: str
-    access_granted: bool
-
-
 class PublicVoteRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

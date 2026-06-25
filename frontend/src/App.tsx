@@ -30,7 +30,6 @@ import {
   auditLogMatchesQuery,
   uniqueStringValues,
   formatPublicVoteMethod,
-  formatAccessMethod,
   textPayload,
   numberPayload,
   textValue,
@@ -50,7 +49,6 @@ import type {
   EventStatus,
   CompetitionStatus,
   PublicVoteMethod,
-  AccessMethod,
   VotingSessionStatus,
   ScreenMode,
   EventRead,
@@ -192,9 +190,7 @@ const setupIssueMap: Record<string, string> = {
   missing_assigned_judges: "Mancano giudici attivi assegnati",
   missing_judge_criteria: "Mancano i criteri di voto per i giudici",
   missing_public_criteria: "Mancano i criteri di voto per il pubblico",
-  missing_access_pin: "Manca il PIN per accesso QR/PIN",
   event_not_live: "Evento non ancora live",
-  competition_results_final: "Risultati gia finali",
   missing_competitions: "Crea almeno una competizione",
 };
 
@@ -203,7 +199,6 @@ const competitionStatusLabels: Record<string, string> = {
   ready: "Pronto",
   voting_open: "Voto Aperto",
   voting_closed: "Voto Chiuso",
-  results_frozen: "Congelato",
   revealed: "Svelato",
 };
 
@@ -399,11 +394,15 @@ export default function App() {
       screenState,
       auditLogs,
     }));
-    setSelectedCompetitionId((current) =>
-      current && competitions.some((competition) => competition.id === current)
-        ? current
-        : competitions[0]?.id ?? ""
-    );
+    const nextCompId = selectedCompetitionId && competitions.some((c) => c.id === selectedCompetitionId)
+      ? selectedCompetitionId
+      : competitions[0]?.id ?? "";
+
+    if (nextCompId === selectedCompetitionId && nextCompId) {
+      void run(() => loadCompetitionData(nextCompId), "Competizione ricaricata");
+    } else {
+      setSelectedCompetitionId(nextCompId);
+    }
   }
 
   async function loadCompetitionData(competitionId: string) {
@@ -517,8 +516,6 @@ export default function App() {
         public_vote_method: textValue(data, "public_vote_method"),
         public_weight: numberValue(data, "public_weight", 50),
         judge_weight: numberValue(data, "judge_weight", 50),
-        access_method: textValue(data, "access_method"),
-        access_pin: textValue(data, "access_pin") || null,
         max_votes_per_user: numberValue(data, "max_votes_per_user", 1),
         max_votes_per_competition: numberValue(data, "max_votes_per_competition", 1),
         allow_vote_update: data.get("allow_vote_update") === "on",
@@ -715,16 +712,6 @@ export default function App() {
     await api<VotingSessionRead>(`/api/competitions/${selectedCompetitionId}/voting-sessions/close`, {
       method: "POST",
       body: JSON.stringify({}),
-    });
-    await refreshSelectedEvent();
-    await refreshSelectedCompetition();
-  }
-
-  async function freezeResults() {
-    if (!selectedCompetitionId) return;
-    await api(`/api/competitions/${selectedCompetitionId}/results/freeze`, {
-      method: "POST",
-      body: JSON.stringify({ snapshot_name: "Finale" }),
     });
     await refreshSelectedEvent();
     await refreshSelectedCompetition();
@@ -976,7 +963,6 @@ export default function App() {
                     label="Metodo pubblico"
                     value={formatPublicVoteMethod(selectedCompetition.public_vote_method)}
                   />
-                  <Metric label="Accesso" value={formatAccessMethod(selectedCompetition.access_method)} />
                   <Metric label="Peso pubblico" value={selectedCompetition.public_weight} />
                   <Metric label="Peso giudici" value={selectedCompetition.judge_weight} />
                   <Metric label="Partecipanti attivi" value={activeParticipantsCount} />
@@ -1083,7 +1069,6 @@ export default function App() {
                   onGoLive={() => run(goEventLive, "Evento live")}
                   onOpenVoting={(form) => run(() => openVoting(form), "Votazione aperta")}
                   onCloseVoting={() => run(closeVoting, "Votazione chiusa")}
-                  onFreeze={() => run(freezeResults, "Risultati congelati")}
                 />
               ) : null}
 
@@ -1216,7 +1201,6 @@ export default function App() {
                 <ResultsTab
                   results={state.results}
                   competition={selectedCompetition}
-                  onFreeze={() => run(freezeResults, "Risultati congelati")}
                   onRefresh={() => run(refreshSelectedCompetition, "Risultati aggiornati")}
                 />
               ) : null}
@@ -1408,12 +1392,12 @@ export default function App() {
 
 function StatusCapsules({
   mode,
-  isFrozen,
+  isRevealed,
   isOpen,
   lastUpdated,
 }: {
   mode: string;
-  isFrozen: boolean;
+  isRevealed: boolean;
   isOpen: boolean;
   lastUpdated?: string;
 }) {
@@ -1431,7 +1415,7 @@ function StatusCapsules({
         </span>
       )}
 
-      {isFrozen ? (
+      {isRevealed ? (
         <span className="capsule capsule-official">
           <img src="/quasanremo/schermo/official_results.png" alt="" />
           Risultati ufficiali
@@ -1526,7 +1510,7 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
     } else if (mode === "voting_open" || mode === "countdown") {
       headingTitle = "Votazioni Aperte";
     } else {
-      headingTitle = state.competition?.status === "results_frozen" ? "Classifica finale" : "Classifica progressiva";
+      headingTitle = state.competition?.status === "revealed" ? "Classifica finale" : "Classifica progressiva";
     }
   }
 
@@ -1539,7 +1523,7 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
     } else if (mode === "voting_open" || mode === "countdown") {
       headingSubtitle = "Sostieni i tuoi preferiti in tempo reale";
     } else {
-      headingSubtitle = state.competition?.status === "results_frozen" ? "Risultati ufficiali della competizione" : "Aggiornamento live della serata";
+      headingSubtitle = state.competition?.status === "revealed" ? "Risultati ufficiali della competizione" : "Aggiornamento live della serata";
     }
   }
 
@@ -1680,7 +1664,7 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
           {!podiumMode ? (
             <StatusCapsules
               mode={state.screenState?.mode ?? "idle"}
-              isFrozen={state.competition?.status === "results_frozen"}
+              isRevealed={state.competition?.status === "revealed"}
               isOpen={Boolean(openSession)}
               lastUpdated={lastUpdatedTime}
             />

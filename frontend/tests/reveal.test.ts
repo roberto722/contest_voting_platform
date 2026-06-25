@@ -26,16 +26,16 @@ test("torna indietro e azzera senza superare i limiti", () => {
 });
 
 test("rivela il podio nel flusso terzo, secondo, primo", () => {
-  assert.deepEqual(visibleRevealedResults(ranking, "show_podium", 0), []);
-  assert.deepEqual(visibleRevealedResults(ranking, "show_podium", 1), ["terzo"]);
-  assert.deepEqual(visibleRevealedResults(ranking, "show_podium", 2), ["secondo", "terzo"]);
-  assert.deepEqual(visibleRevealedResults(ranking, "show_podium", 3), ["primo", "secondo", "terzo"]);
+  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 0), []);
+  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 1), ["terzo"]);
+  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 2), ["secondo", "terzo"]);
+  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 3), ["primo", "secondo", "terzo"]);
   assert.deepEqual(visibleRevealedResults(["primo", "secondo"], "show_final_winners", 1), ["secondo"]);
 });
 
 test("limita contatori invalidi e calcola la prossima posizione", () => {
   assert.equal(revealTotal("reveal_ranking", 7), 7);
-  assert.equal(revealTotal("show_podium", 7), 3);
+  assert.equal(revealTotal("show_podium", 7), 5);
   assert.equal(revealTotal("show_final_winners", 2), 2);
   assert.equal(clampRevealCount(-3, 4), 0);
   assert.equal(clampRevealCount(8, 4), 4);

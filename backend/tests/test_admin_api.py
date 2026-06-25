@@ -11,7 +11,6 @@ from app.models import (
     Participant,
     PublicVote,
     PublicVoteCriterion,
-    ResultSnapshot,
     ScreenState,
     VoterAccount,
     VotingSession,
@@ -59,8 +58,6 @@ def test_admin_can_configure_complete_competition(client: TestClient, db_session
         json={
             "name": "Contest generico",
             "public_vote_method": "single_choice",
-            "access_method": "qr_pin",
-            "access_pin": "1234",
             "public_weight": 60,
             "judge_weight": 40,
         },
@@ -68,8 +65,6 @@ def test_admin_can_configure_complete_competition(client: TestClient, db_session
     assert competition_response.status_code == 201
     competition = competition_response.json()
     competition_id = competition["id"]
-    assert "access_pin" not in competition
-    assert "access_pin_hash" not in competition
 
     for name in ["Anna", "Marco"]:
         response = client.post(
@@ -125,7 +120,6 @@ def test_admin_can_configure_complete_competition(client: TestClient, db_session
     saved_judge = db_session.scalar(select(Judge).where(Judge.id == judge_id))
 
     assert saved_competition is not None
-    assert saved_competition.access_pin_hash != "1234"
     assert saved_judge is not None
     assert saved_judge.access_code_hash != "secret"
 
@@ -314,13 +308,6 @@ def test_delete_event_removes_all_associated_data(
         == 201
     )
     assert (
-        client.post(
-            f"/api/competitions/{competition_id}/results/freeze",
-            json={"snapshot_name": "Finale"},
-        ).status_code
-        == 200
-    )
-    assert (
         client.put(
             f"/api/events/{event_id}/screen-state",
             json={
@@ -346,7 +333,6 @@ def test_delete_event_removes_all_associated_data(
     assert db_session.scalars(select(PublicVote)).all() == []
     assert db_session.scalars(select(VoterAccount)).all() == []
     assert db_session.scalars(select(VotingSession)).all() == []
-    assert db_session.scalars(select(ResultSnapshot)).all() == []
     assert db_session.scalars(select(ScreenState)).all() == []
     assert db_session.scalars(select(AuditLog).where(AuditLog.event_id == event_id)).all() == []
 
@@ -398,7 +384,6 @@ def test_delete_competition_removes_only_competition_associated_data(
     assert db_session.scalars(select(PublicVote)).all() == []
     assert db_session.scalars(select(VoterAccount)).all() == []
     assert db_session.scalars(select(VotingSession)).all() == []
-    assert db_session.scalars(select(ResultSnapshot)).all() == []
     assert (
         db_session.scalars(select(AuditLog).where(AuditLog.competition_id == competition_id)).all()
         == []
@@ -515,7 +500,6 @@ def test_seed_competition_fake_data(client: TestClient, db_session: Session) -> 
             "public_voting_enabled": True,
             "judge_voting_enabled": True,
             "public_vote_method": "criteria_rating",
-            "access_method": "public_link",
             "public_weight": 50,
             "judge_weight": 50,
         },

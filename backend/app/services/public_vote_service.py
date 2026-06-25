@@ -169,6 +169,9 @@ def _check_self_vote(payload: PublicVoteSubmit, self_participant_id: str | None)
     if payload.method is PublicVoteMethod.SINGLE_CHOICE:
         if payload.participant_id == self_participant_id:
             raise PublicVoteError("a participant cannot vote for themselves", status_code=409)
+        ids = payload.ranked_participant_ids or []
+        if self_participant_id in ids:
+            raise PublicVoteError("a participant cannot vote for themselves", status_code=409)
     elif payload.method is PublicVoteMethod.RANKED_CHOICE:
         ids = payload.ranked_participant_ids or []
         if self_participant_id in ids:
@@ -244,12 +247,45 @@ def _build_votes(
     payload: PublicVoteSubmit,
 ) -> list[PublicVote]:
     if payload.method is PublicVoteMethod.SINGLE_CHOICE:
+        if competition.max_votes_per_user > 1:
+            return _build_multiple_choice_votes(db, competition, voting_session, voter_account_id, payload)
         return [_build_single_choice_vote(db, competition, voting_session, voter_account_id, payload)]
     if payload.method is PublicVoteMethod.RANKED_CHOICE:
         return _build_ranked_choice_votes(db, competition, voting_session, voter_account_id, payload)
     if payload.method is PublicVoteMethod.CRITERIA_RATING:
         return _build_criteria_rating_votes(db, competition, voting_session, voter_account_id, payload)
     raise PublicVoteError("unsupported public vote method")
+
+
+def _build_multiple_choice_votes(
+    db: Session,
+    competition: Competition,
+    voting_session: VotingSession,
+    voter_account_id: str,
+    payload: PublicVoteSubmit,
+) -> list[PublicVote]:
+    participant_ids = payload.ranked_participant_ids or []
+    if not participant_ids:
+        raise PublicVoteError("ranked_participant_ids is required for multiple selection under single choice")
+    if len(participant_ids) != len(set(participant_ids)):
+        raise PublicVoteError("selected participants cannot contain duplicates")
+    if len(participant_ids) > competition.max_votes_per_user:
+        raise PublicVoteError(f"selection exceeds max_votes_per_user limit of {competition.max_votes_per_user}")
+
+    active_participants = _get_active_participants_by_id(db, competition.id, participant_ids)
+
+    return [
+        PublicVote(
+            competition_id=competition.id,
+            participant_id=p.id,
+            voting_session_id=voting_session.id,
+            voter_account_id=voter_account_id,
+            vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            value=1,
+            rank_position=None,
+        )
+        for p in active_participants.values()
+    ]
 
 
 def _build_single_choice_vote(

@@ -6,8 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.schemas.public_vote import (
-    PublicCompetitionAccess,
-    PublicCompetitionAccessRead,
     PublicVoteSubmit,
     PublicVoteSubmitRead,
     PublicVoteSummaryRead,
@@ -57,39 +55,6 @@ def voter_access_by_token(
         display_name=va.display_name,
         access_token=va.access_token,
     )
-
-
-@router.post(
-    "/api/competitions/{competition_id}/public-access",
-    response_model=PublicCompetitionAccessRead,
-)
-def validate_public_access(
-    competition_id: str,
-    payload: PublicCompetitionAccess,
-    db: Annotated[Session, Depends(get_db)],
-) -> PublicCompetitionAccessRead:
-    competition = access_service.verify_public_competition_access(
-        db,
-        competition_id,
-        pin=payload.pin,
-    )
-    audit_service.record_audit_log(
-        db,
-        event_id=competition.event_id,
-        competition_id=competition.id,
-        actor_type="public",
-        actor_label="Pubblico",
-        action="public_access_granted",
-        entity_type="competition_access",
-        entity_id=competition.id,
-        details_json={"access_method": competition.access_method.value},
-    )
-    return {
-        "competition_id": competition.id,
-        "event_id": competition.event_id,
-        "access_method": competition.access_method.value,
-        "access_granted": True,
-    }
 
 
 @router.post(

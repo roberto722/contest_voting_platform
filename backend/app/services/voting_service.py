@@ -112,7 +112,6 @@ def ensure_can_accept_votes(db: Session, competition_id: str) -> VotingSession:
 
 def _ensure_competition_can_open(db: Session, competition: Competition) -> None:
     if competition.status in {
-        CompetitionStatus.RESULTS_FROZEN,
         CompetitionStatus.REVEALED,
     }:
         raise VotingStateError("competition results are final")

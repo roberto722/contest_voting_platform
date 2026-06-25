@@ -18,12 +18,6 @@ class PublicVoteMethod(StrEnum):
     CRITERIA_RATING = "criteria_rating"
 
 
-class AccessMethod(StrEnum):
-    PUBLIC_LINK = "public_link"
-    QR_PIN = "qr_pin"
-    PRIVATE_LINK = "private_link"
-
-
 class CompetitionStatus(StrEnum):
     DRAFT = "draft"
     READY = "ready"

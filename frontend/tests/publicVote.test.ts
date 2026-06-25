@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  buildPublicVotePayload,
+  buildVotePayload,
   getVotingState,
   isPublicVotePath,
   participantBackdrop,
@@ -28,29 +28,28 @@ test("distingue sessione aperta, attesa e chiusa", () => {
 
 test("costruisce i tre payload di voto", () => {
   assert.deepEqual(
-    buildPublicVotePayload("token", "single_choice", {
+    buildVotePayload("single_choice", {
       participantId: "p1",
       rankedParticipantIds: [],
       ratings: [],
     }),
-    { voter_token: "token", method: "single_choice", participant_id: "p1" },
+    { method: "single_choice", participant_id: "p1" },
   );
   assert.deepEqual(
-    buildPublicVotePayload("token", "ranked_choice", {
+    buildVotePayload("ranked_choice", {
       participantId: "",
       rankedParticipantIds: ["p2", "", "p1"],
       ratings: [],
     }),
-    { voter_token: "token", method: "ranked_choice", ranked_participant_ids: ["p2", "p1"] },
+    { method: "ranked_choice", ranked_participant_ids: ["p2", "p1"] },
   );
   assert.deepEqual(
-    buildPublicVotePayload("token", "criteria_rating", {
+    buildVotePayload("criteria_rating", {
       participantId: "p1",
       rankedParticipantIds: [],
       ratings: [{ criterion_id: "c1", score: 8 }],
     }),
     {
-      voter_token: "token",
       method: "criteria_rating",
       ratings: [{ participant_id: "p1", criteria: [{ criterion_id: "c1", score: 8 }] }],
     },

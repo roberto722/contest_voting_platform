@@ -4,7 +4,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    AccessMethod,
     Competition,
     CompetitionJudge,
     CompetitionStatus,
@@ -18,7 +17,6 @@ from app.models import (
 )
 
 FINAL_COMPETITION_STATUSES = {
-    CompetitionStatus.RESULTS_FROZEN,
     CompetitionStatus.REVEALED,
 }
 
@@ -172,25 +170,6 @@ def get_competition_setup_status(db: Session, competition: Competition) -> dict[
             }
         )
 
-    if competition.access_method == AccessMethod.QR_PIN:
-        add_check(
-            "access",
-            bool(competition.access_pin_hash),
-            (
-                "PIN pubblico configurato"
-                if competition.access_pin_hash
-                else "Configura un PIN per accesso QR/PIN"
-            ),
-            "missing_access_pin",
-        )
-    else:
-        checks.append(
-            {
-                "step": "access",
-                "completed": True,
-                "message": f"Accesso configurato: {competition.access_method.value}",
-            }
-        )
 
     if competition.status in FINAL_COMPETITION_STATUSES:
         messages.append("Risultati gia congelati o rivelati")

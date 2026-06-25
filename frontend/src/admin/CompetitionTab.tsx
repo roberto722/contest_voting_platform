@@ -6,7 +6,6 @@ import {
   Badge,
   Metric,
   formatPublicVoteMethod,
-  formatAccessMethod,
 } from "./components";
 
 type Props = {
@@ -25,7 +24,6 @@ const competitionStatusLabels: Record<CompetitionStatus, string> = {
   ready: "Pronto",
   voting_open: "Voto Aperto",
   voting_closed: "Voto Chiuso",
-  results_frozen: "Congelato",
   revealed: "Svelato",
 };
 
@@ -106,20 +104,6 @@ export function CompetitionTab({
               </span>
             </label>
           </div>
-          <div className="inline-grid">
-            <label className="field-stack">
-              <span>Metodo accesso</span>
-              <select name="access_method" defaultValue="public_link">
-                <option value="public_link">Link pubblico</option>
-                <option value="qr_pin">QR + PIN</option>
-                <option value="private_link">Link privato</option>
-              </select>
-            </label>
-            <label className="field-stack">
-              <span>PIN se QR/PIN</span>
-              <input name="access_pin" placeholder="PIN pubblico" />
-            </label>
-          </div>
         </Form>
         <List>
           {competitions.map((competition) => (
@@ -163,10 +147,6 @@ export function CompetitionTab({
               <Metric
                 label="Metodo voto pubblico"
                 value={formatPublicVoteMethod(selectedCompetition.public_vote_method)}
-              />
-              <Metric
-                label="Accesso pubblico"
-                value={formatAccessMethod(selectedCompetition.access_method)}
               />
               <Metric label="Peso pubblico" value={selectedCompetition.public_weight} />
               <Metric label="Peso giudici" value={selectedCompetition.judge_weight} />

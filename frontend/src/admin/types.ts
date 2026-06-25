@@ -6,10 +6,8 @@ export type CompetitionStatus =
   | "ready"
   | "voting_open"
   | "voting_closed"
-  | "results_frozen"
   | "revealed";
 export type PublicVoteMethod = "single_choice" | "ranked_choice" | "criteria_rating";
-export type AccessMethod = "public_link" | "qr_pin" | "private_link";
 export type VotingSessionStatus = "open" | "closed" | "cancelled";
 export type ScreenMode =
   | "idle"
@@ -39,7 +37,6 @@ export type CompetitionRead = {
   public_vote_method: PublicVoteMethod;
   public_weight: number;
   judge_weight: number;
-  access_method: AccessMethod;
   max_votes_per_user: number;
   max_votes_per_competition: number;
   allow_vote_update: boolean;

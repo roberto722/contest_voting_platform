@@ -6,7 +6,7 @@ from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
-from app.models.enums import AccessMethod, CompetitionStatus, PublicVoteMethod, enum_values
+from app.models.enums import CompetitionStatus, PublicVoteMethod, enum_values
 from app.models.mixins import IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from app.models.event import Event
     from app.models.judge import CompetitionJudge
     from app.models.participant import Participant
-    from app.models.result import ResultSnapshot
     from app.models.screen import ScreenState
     from app.models.vote import JudgeVote, PublicVote
     from app.models.voting import VotingSession
@@ -36,12 +35,6 @@ class Competition(IdMixin, TimestampMixin, Base):
     )
     public_weight: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
     judge_weight: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
-    access_method: Mapped[AccessMethod] = mapped_column(
-        Enum(AccessMethod, native_enum=False, values_callable=enum_values),
-        default=AccessMethod.PUBLIC_LINK,
-        nullable=False,
-    )
-    access_pin_hash: Mapped[str | None] = mapped_column(String(255))
     max_votes_per_user: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     max_votes_per_competition: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     allow_vote_update: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -80,10 +73,6 @@ class Competition(IdMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
     judge_votes: Mapped[list[JudgeVote]] = relationship(
-        back_populates="competition",
-        cascade="all, delete-orphan",
-    )
-    result_snapshots: Mapped[list[ResultSnapshot]] = relationship(
         back_populates="competition",
         cascade="all, delete-orphan",
     )

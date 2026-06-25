@@ -13,10 +13,8 @@ from app.models import (
     PublicCriterionVote,
     PublicVote,
     PublicVoteMethod,
-    ResultSnapshot,
     VotingSession,
 )
-from app.services import audit_service
 from app.services.admin_service import get_competition
 
 RANKED_CHOICE_POINTS = {1: 3.0, 2: 2.0, 3: 1.0}
@@ -30,18 +28,8 @@ class ComponentScore:
     normalized_score: float
 
 
-class ResultsFreezeError(Exception):
-    def __init__(self, message: str, status_code: int = 409) -> None:
-        self.message = message
-        self.status_code = status_code
-        super().__init__(message)
-
-
 def get_competition_results(db: Session, competition_id: str) -> dict[str, object]:
     competition = get_competition(db, competition_id)
-    final_snapshot = _get_final_snapshot(db, competition.id)
-    if final_snapshot is not None:
-        return final_snapshot.results_json
     return calculate_live_results(db, competition)
 
 
@@ -81,60 +69,6 @@ def calculate_live_results(db: Session, competition: Competition) -> dict[str, o
         "voting_session_id": voting_session.id if voting_session is not None else None,
         "results": results,
     }
-
-
-def freeze_competition_results(
-    db: Session,
-    competition_id: str,
-    snapshot_name: str,
-    created_by_admin_id: str | None = None,
-) -> ResultSnapshot:
-    competition = get_competition(db, competition_id)
-    existing = _get_final_snapshot(db, competition.id)
-    if existing is not None:
-        raise ResultsFreezeError("competition results are already frozen")
-
-    results = calculate_live_results(db, competition)
-    snapshot = ResultSnapshot(
-        competition_id=competition.id,
-        snapshot_name=snapshot_name,
-        results_json=results,
-        created_by_admin_id=created_by_admin_id,
-        is_final=True,
-    )
-    competition.status = CompetitionStatus.RESULTS_FROZEN
-    db.add(snapshot)
-    db.commit()
-    db.refresh(snapshot)
-    audit_service.record_audit_log(
-        db,
-        event_id=competition.event_id,
-        competition_id=competition.id,
-        action="admin_results_frozen",
-        entity_type="result_snapshot",
-        entity_id=snapshot.id,
-        details_json={"snapshot_name": snapshot_name, "is_final": True},
-    )
-    return snapshot
-
-
-def get_final_results(db: Session, competition_id: str) -> ResultSnapshot:
-    competition = get_competition(db, competition_id)
-    snapshot = _get_final_snapshot(db, competition.id)
-    if snapshot is None:
-        raise ResultsFreezeError("competition results are not frozen", status_code=404)
-    return snapshot
-
-
-def _get_final_snapshot(db: Session, competition_id: str) -> ResultSnapshot | None:
-    return db.scalar(
-        select(ResultSnapshot)
-        .where(
-            ResultSnapshot.competition_id == competition_id,
-            ResultSnapshot.is_final.is_(True),
-        )
-        .order_by(ResultSnapshot.created_at.desc())
-    )
 
 
 def _list_active_participants(db: Session, competition_id: str) -> list[Participant]:

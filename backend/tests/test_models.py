@@ -3,7 +3,6 @@ from collections.abc import Generator
 import pytest
 from app.db import Base
 from app.models import (
-    AccessMethod,
     Competition,
     CompetitionJudge,
     CompetitionStatus,
@@ -18,7 +17,6 @@ from app.models import (
     PublicVote,
     PublicVoteCriterion,
     PublicVoteMethod,
-    ResultSnapshot,
     ScreenMode,
     ScreenState,
     VoterAccount,
@@ -48,7 +46,6 @@ def test_event_competition_participant_judge_and_criteria_relationships(session:
         name="Competizione libera",
         description="Configurabile",
         public_vote_method=PublicVoteMethod.SINGLE_CHOICE,
-        access_method=AccessMethod.PUBLIC_LINK,
         status=CompetitionStatus.READY,
     )
     participant = Participant(
@@ -136,15 +133,9 @@ def test_voting_sessions_public_votes_and_judge_votes(session: Session) -> None:
     assert saved_competition.judge_votes[0].criterion_votes[0].score == 9
 
 
-def test_result_snapshot_and_screen_state_store_json_payloads(session: Session) -> None:
+def test_screen_state_stores_json_payloads(session: Session) -> None:
     event = Event(name="Contest")
     competition = Competition(event=event, name="Finale")
-    snapshot = ResultSnapshot(
-        competition=competition,
-        snapshot_name="Finale",
-        results_json={"ranking": [{"participant": "Anna", "score": 100}]},
-        is_final=True,
-    )
     screen_state = ScreenState(
         event=event,
         competition=competition,
@@ -152,18 +143,15 @@ def test_result_snapshot_and_screen_state_store_json_payloads(session: Session) 
         payload_json={"title": "Classifica"},
     )
 
-    session.add_all([snapshot, screen_state])
+    session.add_all([screen_state])
     session.commit()
 
-    saved_snapshot = session.scalar(select(ResultSnapshot))
     saved_screen = session.scalar(select(ScreenState))
 
-    assert saved_snapshot is not None
-    assert saved_snapshot.results_json["ranking"][0]["score"] == 100
-    assert saved_snapshot.is_final is True
     assert saved_screen is not None
     assert saved_screen.mode is ScreenMode.SHOW_RESULTS
     assert saved_screen.payload_json["title"] == "Classifica"
+
 
 
 def test_voter_account_creation(session: Session) -> None:
