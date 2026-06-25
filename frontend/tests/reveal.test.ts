@@ -28,9 +28,9 @@ test("torna indietro e azzera senza superare i limiti", () => {
 test("rivela il podio nel flusso terzo, secondo, primo", () => {
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 0), []);
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 1), ["terzo"]);
-  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 2), ["primo", "terzo"]);
+  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 2), ["secondo", "terzo"]);
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 3), ["primo", "secondo", "terzo"]);
-  assert.deepEqual(visibleRevealedResults(["primo", "secondo"], "show_final_winners", 1), ["primo"]);
+  assert.deepEqual(visibleRevealedResults(["primo", "secondo"], "show_final_winners", 1), ["secondo"]);
 });
 
 test("limita contatori invalidi e calcola la prossima posizione", () => {
@@ -47,8 +47,8 @@ test("limita contatori invalidi e calcola la prossima posizione", () => {
   assert.equal(nextRevealRank(5, 0, "show_podium"), 5);
   assert.equal(nextRevealRank(5, 1, "show_podium"), 4);
   assert.equal(nextRevealRank(5, 2, "show_podium"), 3);
-  assert.equal(nextRevealRank(5, 3, "show_podium"), 1);
-  assert.equal(nextRevealRank(5, 4, "show_podium"), 2);
+  assert.equal(nextRevealRank(5, 3, "show_podium"), 2);
+  assert.equal(nextRevealRank(5, 4, "show_podium"), 1);
 });
 
 test("non modifica l'array ordinato ricevuto", () => {
