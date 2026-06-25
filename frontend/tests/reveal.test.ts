@@ -42,6 +42,13 @@ test("limita contatori invalidi e calcola la prossima posizione", () => {
   assert.equal(nextRevealRank(4, 0), 4);
   assert.equal(nextRevealRank(4, 3), 1);
   assert.equal(nextRevealRank(4, 4), null);
+
+  // Test podium reveal sequence for 5 places
+  assert.equal(nextRevealRank(5, 0, "show_podium"), 5);
+  assert.equal(nextRevealRank(5, 1, "show_podium"), 4);
+  assert.equal(nextRevealRank(5, 2, "show_podium"), 3);
+  assert.equal(nextRevealRank(5, 3, "show_podium"), 1);
+  assert.equal(nextRevealRank(5, 4, "show_podium"), 2);
 });
 
 test("non modifica l'array ordinato ricevuto", () => {
