@@ -28,9 +28,9 @@ export function nextRevealRank(
     return safeTotal - (step - 1);
   }
   if (step === safeTotal - 1) {
-    return 2;
+    return 1;
   }
-  return 1;
+  return 2;
 }
 
 export function previousRevealCount(value: number, total: number): number {
@@ -53,11 +53,11 @@ export function visibleRevealedResults<T>(
   for (let i = total - 1; i >= 2; i--) {
     revealedIndices.push(i);
   }
-  if (total >= 2) {
-    revealedIndices.push(1);
-  }
   if (total >= 1) {
     revealedIndices.push(0);
+  }
+  if (total >= 2) {
+    revealedIndices.push(1);
   }
 
   const activeIndices = revealedIndices.slice(0, count);

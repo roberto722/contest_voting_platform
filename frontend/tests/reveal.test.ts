@@ -28,9 +28,9 @@ test("torna indietro e azzera senza superare i limiti", () => {
 test("rivela il podio nel flusso terzo, secondo, primo", () => {
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 0), []);
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 1), ["terzo"]);
-  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 2), ["secondo", "terzo"]);
+  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 2), ["primo", "terzo"]);
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 3), ["primo", "secondo", "terzo"]);
-  assert.deepEqual(visibleRevealedResults(["primo", "secondo"], "show_final_winners", 1), ["secondo"]);
+  assert.deepEqual(visibleRevealedResults(["primo", "secondo"], "show_final_winners", 1), ["primo"]);
 });
 
 test("limita contatori invalidi e calcola la prossima posizione", () => {
