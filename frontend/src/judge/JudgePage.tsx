@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
 import { participantBackdrop } from "../public-vote/publicVote";
+import EmojiSlider from "../components/EmojiSlider";
 import "../public-vote/public-vote.css";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -542,13 +543,11 @@ export default function JudgePage() {
                             {val} / {c.max_score}
                           </strong>
                         </span>
-                        <input
-                          type="range"
+                        <EmojiSlider
                           min={c.min_score}
                           max={c.max_score}
                           value={val}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
+                          onChange={(v) => {
                             setCriteriaScores((curr) => ({ ...curr, [c.id]: v }));
                           }}
                         />
