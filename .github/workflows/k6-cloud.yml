@@ -1,0 +1,45 @@
+name: k6 cloud load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      event_id:
+        description: Event ID used by voter access codes
+        required: true
+        default: 0dfd4ca1-977f-4886-9a1a-04660682a91b
+      competition_id:
+        description: Competition ID to test
+        required: true
+        default: e15c9b80-71cb-40b9-bc42-f5221e216acf
+      backend_url:
+        description: Public backend URL
+        required: true
+        default: https://api.qsr.it.eu.org
+      frontend_url:
+        description: Public frontend URL
+        required: false
+        default: https://qsr.it.eu.org
+      vote_method:
+        description: Public vote method
+        required: true
+        default: single_choice
+
+jobs:
+  k6-cloud:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Run 50 internet sessions in Grafana Cloud
+        env:
+          K6_CLOUD_TOKEN: ${{ secrets.K6_CLOUD_TOKEN }}
+          LOAD_TEST_ACCESS_CODES: ${{ secrets.LOAD_TEST_ACCESS_CODES }}
+          JUDGE_ACCESS_CODES: ${{ secrets.JUDGE_ACCESS_CODES }}
+          BACKEND_URL: ${{ inputs.backend_url }}
+          FRONTEND_URL: ${{ inputs.frontend_url }}
+          EVENT_ID: ${{ inputs.event_id }}
+          COMPETITION_ID: ${{ inputs.competition_id }}
+          VOTE_METHOD: ${{ inputs.vote_method }}
+        run: k6 cloud load-tests/k6-50-sessions.js
