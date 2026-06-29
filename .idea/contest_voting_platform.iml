@@ -5,6 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/backend" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/backend/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/.serena/cache" />
     </content>
     <orderEntry type="jdk" jdkName="uv (contest_voting_platform)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
