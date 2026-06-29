@@ -1,0 +1,138 @@
+{
+   "checksum": "1500ff060867a3535a643b19eee1c5dd",
+   "roots": {
+      "bookmark_bar": {
+         "children": [ {
+            "date_added": "13417542716397232",
+            "date_last_used": "13418813596073520",
+            "guid": "2a735e41-a94c-4166-82ab-1df43897901f",
+            "id": "8",
+            "name": "TamTamy",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://tamtamy.reply.com/tamtamy/home.action",
+            "visit_count": 5
+         }, {
+            "date_added": "13417720462626346",
+            "date_last_used": "13420278317340060",
+            "guid": "5e8e1119-f253-4026-a0da-f38929563827",
+            "id": "9",
+            "name": "[12] - Consuntivazione 2026 - Google Sheets",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://docs.google.com/spreadsheets/d/1ChdDV9zt-DbMu0cKy9hfCpl4blkQ7riJ9n5nbXTQtn8/edit?pli=1&gid=1556821257#gid=1556821257",
+            "visit_count": 18
+         }, {
+            "date_added": "13417542702511204",
+            "date_last_used": "13417542771715524",
+            "guid": "87563574-36bc-4ca5-ad45-4ac67d4fc36c",
+            "id": "10",
+            "name": "mlreply / Repositories — Bitbucket",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://bitbucket.org/mlreply/workspace/repositories/",
+            "visit_count": 2
+         }, {
+            "date_added": "13417885426968990",
+            "date_last_used": "0",
+            "guid": "6ec047f5-b319-4621-8205-98a63dfdec63",
+            "id": "11",
+            "name": "Machine Learning Reply - Google Drive",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://drive.google.com/drive/u/1/folders/0AL_UWInF-cmyUk9PVA",
+            "visit_count": 1
+         }, {
+            "date_added": "13417613592598788",
+            "date_last_used": "13418989467797516",
+            "guid": "a3ba7e39-fa61-44e9-aafa-663af4743faf",
+            "id": "12",
+            "name": "Google Gemini",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://gemini.google.com/u/1/app?pageId=none",
+            "visit_count": 7
+         }, {
+            "date_added": "13418135360945341",
+            "date_last_used": "13418488112212272",
+            "guid": "943453e7-677d-45b2-86ac-fc1979fd3fbd",
+            "id": "13",
+            "name": "AirHelp+",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://my.airhelp.com/claims/2d2a816d-2b5a-43a9-8fa0-41547dced514",
+            "visit_count": 7
+         }, {
+            "date_added": "13418232007660744",
+            "date_last_used": "13420734676552015",
+            "guid": "eb98ef76-102a-4d82-8dad-e1acdfe002f2",
+            "id": "14",
+            "name": "Galaxy.ai - The #1 All-in-One AI Platform",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://galaxy.ai/tools",
+            "visit_count": 6
+         } ],
+         "date_added": "13426412902548278",
+         "date_last_used": "0",
+         "date_modified": "13418232007660744",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Favorites bar",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "other": {
+         "children": [  ],
+         "date_added": "13426412902548278",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [  ],
+         "date_added": "13426412902548278",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "workspaces_v2": {
+         "children": [ {
+            "children": [  ],
+            "date_added": "13421253039157960",
+            "date_last_used": "0",
+            "date_modified": "13421253039157960",
+            "guid": "ebcd7ed9-95f4-4495-ae35-816c42332e35",
+            "id": "7",
+            "name": "Startups",
+            "source": "unknown",
+            "type": "folder"
+         } ],
+         "date_added": "13426412902548278",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "75aa6670-344f-549d-b742-660f029506ab",
+         "id": "5",
+         "name": "Workspaces",
+         "source": "unknown",
+         "type": "folder"
+      }
+   },
+   "sync_metadata": "CosBCg4IiIECEghmryzOnQEAABIAGlhxdElUTWZhcWZBU2svTWxqMlhwOVFhZm9admtpdUx2K2FmaEE1eDcvL0c5bEpWd3daK09mNFNCRkd4YzhyazdGNWJMbGEzTTRlc2k4RmVhTmE2Si9VQT09Khg3RmRzK1ppUFR1ekU3SzNuOHo4QUVBPT1IA6AGCRKOAQgCEokBChxZY1NUb252RVNQd3FDczRMMmNyVmh2NjhMOTg9EiQ1MzMxOTE4MC00ZjY2LTU1MjAtODQ5YS05YWFmOTg5MWY2YTgYACAAKAAwgO26kc0zOK3yupHNM0Ct8rqRzTNKHG9QVmtod0JSYlY2NUtDV1IyK0lPTkhXb091OD1aAGUAAAAAwj4CYAASjgEIAxKJAQocbmpnRHU4OGVDcnZYcDg2cEQ3ZkhHY3FGcDg4PRIkOWNmNTJkNjgtMDgxMy01YTgxLTliNmQtZGYwNDQwMDdiYjIyGAAgACgAMIbtupHNMzi/87qRzTNAv/O6kc0zShx5ek5CMDFjbjU0QTdjUlUwdVQrL1BnbVR0VW89WgBlAAAAAMI+AmAAEq0BCAkSqAEKHGRmR01IOVJKOVB3RkRjemlGeGo4anQwRVpvMD0SJDVlOGUxMTE5LWYyNTMtNDAyNi1hMGRhLWYzODkyOTU2MzgyNxgAIAAoADDx2rr22jM4u7P/7c0zQLuz/+3NM0ocNnpuemtBcVNPckVjUitJWVhhWlVFNm9Wd2pvPVofIh1TMDZ4MnRHY0F2OFl0RUw0Z2FCak9KT25ITS9jPWWS2Qvawj4CYAUSrQEIDhKoAQocZGZFeWtmVndtZWdFTEhNR1hXN2ptckNNUC9jPRIkZWI5OGVmNzYtMTAyYS00ZDgyLThkYWQtZTFhY2RmZTAwMmYyGAAgACgAMPC8pIvZMzjD+vXhzzNAw/r14c8zShxzdjBHaWFzWXpGQjVwNkY2Wmh5bWNDTXh2dkE9Wh8iHf1qV3RqY2xrR3VSZG9lY1lmbG9iV2xmOTkwbnM9ZcHbuz/CPgJgBRKtAQgNEqgBChwzSTFiOEtPc1J3QXJwSzA4cHFoaTQrd3NTZjQ9EiQ5NDM0NTNlNy02NzdkLTQ1YjItODZhYy1mYzE5NzlmZDNmYmQYACAAKAAwgImF3NAzOPql6rPPM0D6peqzzzNKHGFxWUtDTTBUSERRREpSTWtyUmNDVElmd3htRT1aHyId+zVYaU9TaVFibjFxMitQSDZJejhJU0xaaHd3WT1lcBTkLMI+AmAFEqwBCAsSpwEKHDJFY1FqK1pBOC9LeFNmZ0NvdnJKZ1RpTlZmST0SJDZlYzA0N2Y1LWIzMTktNDYyMS04MjA1LTk4YTYzZGZkZWM2MxgAIAAoADD94qvbzzM4yufTvM4zQMrn07zOM0ocMlRmZ3ZxWWcxdm9uRTQzckszdjFoS3BDcU1jPVoeIhxuKy9KdVJGaktRVmFpT01FTEJFVUJGcVBnc009ZWpk7hLCPgJgBRKsAQgKEqcBChx6QmVKOVVTSW9OWDBGMEJ4bklrSENGbUxra0U9EiQ4NzU2MzU3NC0zNmJjLTRjYTUtYWQ0NS00YWM2N2Q0ZmMzNmMYACAAKAAw5d6y8dwzOJXynZnNM0CV8p2ZzTNKHEdweWVjT3ViczBjU1pCKzFxOUd4RCtiWWpzQT1aHiIcYVJkSU83R2RrQWUyeTN6R2t5TTdLczd6NzR3PWU+JISOwj4CYAUSrAEICBKnAQocMm9DK2UxM1BDdlkwaTFQdFV3OXhCNjVvSHhrPRIkMmE3MzVlNDEtYTk0Yy00MTY2LTgyYWItMWRmNDM4OTc5MDFmGAAgACgAMNmDn/fRMzjG256ZzTNAxtuemc0zShxzd3l1Q0JUSERHdDFoTGR4MTBSZjZnY1U5SkU9Wh4iHEVQcDJYV0hDRmVQMjVZUGtBYlNSYzREVDNURT1lQGJSwcI+AmAFEo4BCAESiQEKHHl4Si82ZnZrZWNyN2twNUVRekI0dFdMcGRiRT0SJGFhNjA2YWU5LTE4NjItNWNjNy1iYzg1LWQ3OGJiYjY0YzMyNBgAIAAoADD/7LqRzTM48vG6kc0zQPLxupHNM0ocYVJDV0xnaEY5YjVJbnFLSUR2dUovanZRa0ZjPVoAZQAAAADCPgJgABKtAQgMEqgBChx4dkt2TU5INjFNY1B3bzZSckpsS3dMWStTV289EiRhM2JhN2UzOS1mYTYxLTQ0ZTktYWFmYS02NjNhZjQ3NDNmYWYYACAAKAAwuaP+udYzOLTVhLvNM0C01YS7zTNKHG5NUmQyNU1YMlZ5WWY2eHZxWmpuOVVZb21oWT1aHyId2E51Tjg0R3VITGlDdXNYVjlQbnhNenBRMFhIYz1lhXCxBMI+AmAFEqwBCAcSpwEKHHdrdWtNZS8weVRuRCt5OGNTL3V2ZE00WGI1ST0SJGViY2Q3ZWQ5LTk1ZjQtNDQ5NS1hZTM1LTgxNmM0MjMzMmUzNRgAIAAoADDN3LqC2zM45O26gtszQOTtuoLbM0ocbExURHF0cllONjBiZ29pTWJZMng4NHdHR2YwPVoeIhx3SDg0R1c5eStmYk9NUWE3dEJ5VzhqTk80ME09ZQAAAADCPgJgABKOAQgFEokBChx3UkJyWkwrNlBBOWF2S2dqTlA3SlhETGNmdnM9EiQ5ZTY0ZjdlNi1mMWJhLTVkNmYtYWI0Mi0wN2M2NjgzOTZhYTMYACAAKAAwhe26kc0zOIvzupHNM0CL87qRzTNKHG5teDY1c1FEdnhJOFRnRWV2K0ErbnR0b1NuND1aAGUAAAAAwj4CYAAwADgA",
+   "version": 1
+}
