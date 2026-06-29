@@ -42,4 +42,4 @@ jobs:
           EVENT_ID: ${{ inputs.event_id }}
           COMPETITION_ID: ${{ inputs.competition_id }}
           VOTE_METHOD: ${{ inputs.vote_method }}
-        run: k6 cloud run load-tests/k6-50-sessions.js
+        run: k6 cloud run --include-system-env-vars load-tests/k6-50-sessions.js
