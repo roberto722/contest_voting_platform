@@ -27,6 +27,8 @@ coverage/
 postgres-data/
 .tmp/
 .superpowers/
+credenziali_utenti_grafana.txt
+token_grafana.txt
 
 # IDE
 .idea/

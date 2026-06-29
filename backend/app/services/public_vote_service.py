@@ -20,6 +20,8 @@ from app.services import audit_service
 from app.services.admin_service import get_competition
 from app.services.voting_service import ensure_can_accept_votes
 
+MAX_PUBLIC_CHOICES_PER_USER = 3
+
 
 class PublicVoteError(Exception):
     def __init__(self, message: str, status_code: int = 400) -> None:
@@ -267,10 +269,7 @@ def _build_multiple_choice_votes(
     participant_ids = payload.ranked_participant_ids or []
     if not participant_ids:
         raise PublicVoteError("ranked_participant_ids is required for multiple selection under single choice")
-    if len(participant_ids) != len(set(participant_ids)):
-        raise PublicVoteError("selected participants cannot contain duplicates")
-    if len(participant_ids) > competition.max_votes_per_user:
-        raise PublicVoteError(f"selection exceeds max_votes_per_user limit of {competition.max_votes_per_user}")
+    _validate_public_choice_count(participant_ids, competition)
 
     active_participants = _get_active_participants_by_id(db, competition.id, participant_ids)
 
@@ -318,10 +317,7 @@ def _build_ranked_choice_votes(
     participant_ids = payload.ranked_participant_ids or []
     if not participant_ids:
         raise PublicVoteError("ranked_participant_ids is required for ranked_choice")
-    if len(participant_ids) != len(set(participant_ids)):
-        raise PublicVoteError("ranked_participant_ids cannot contain duplicates")
-    if len(participant_ids) > competition.max_votes_per_user:
-        raise PublicVoteError("ranked choice exceeds max_votes_per_user")
+    _validate_public_choice_count(participant_ids, competition)
 
     active_participants = _get_active_participants_by_id(db, competition.id, participant_ids)
     return [
@@ -348,10 +344,7 @@ def _build_criteria_rating_votes(
     if not ratings:
         raise PublicVoteError("ratings is required for criteria_rating")
     participant_ids = [r.participant_id for r in ratings]
-    if len(participant_ids) != len(set(participant_ids)):
-        raise PublicVoteError("ratings cannot contain duplicate participants")
-    if len(participant_ids) > competition.max_votes_per_user:
-        raise PublicVoteError("criteria rating exceeds max_votes_per_user")
+    _validate_public_choice_count(participant_ids, competition)
 
     participants = _get_active_participants_by_id(db, competition.id, participant_ids)
     criteria = _get_active_public_criteria_by_id(db, competition.id)
@@ -359,6 +352,23 @@ def _build_criteria_rating_votes(
         _build_criteria_rating_vote(competition, voting_session, voter_account_id, participants[r.participant_id], criteria, r)
         for r in ratings
     ]
+
+
+def _validate_public_choice_count(
+    participant_ids: list[str],
+    competition: Competition,
+) -> None:
+    max_allowed = min(competition.max_votes_per_user, MAX_PUBLIC_CHOICES_PER_USER)
+    if len(participant_ids) > max_allowed:
+        raise PublicVoteError(
+            f"voter can select at most {max_allowed} participants",
+            status_code=400,
+        )
+    if len(set(participant_ids)) != len(participant_ids):
+        raise PublicVoteError(
+            "cannot vote more than once for the same participant",
+            status_code=400,
+        )
 
 
 def _build_criteria_rating_vote(

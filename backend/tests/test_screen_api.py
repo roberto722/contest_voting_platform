@@ -60,8 +60,8 @@ def test_admin_can_update_screen_state(client: TestClient) -> None:
         f"/api/events/{event_id}/screen-state",
         json={
             "competition_id": competition_id,
-            "mode": "show_results",
-            "payload_json": {"title": "Classifica"},
+            "mode": "show_podium",
+            "payload_json": {"title": "Podio"},
         },
     )
 
@@ -69,8 +69,25 @@ def test_admin_can_update_screen_state(client: TestClient) -> None:
     assert default_state.json()["mode"] == "idle"
     assert updated.status_code == 200
     assert updated.json()["competition_id"] == competition_id
-    assert updated.json()["mode"] == "show_results"
-    assert updated.json()["payload_json"]["title"] == "Classifica"
+    assert updated.json()["mode"] == "show_podium"
+    assert updated.json()["payload_json"]["title"] == "Podio"
+
+
+def test_admin_cannot_use_removed_screen_modes(client: TestClient) -> None:
+    event_id = client.post("/api/events", json={"name": "Serata Live"}).json()["id"]
+    competition_id = _create_ready_public_competition(client, event_id)
+
+    for mode in ["show_qr", "voting_open", "show_results", "show_final_winners"]:
+        response = client.put(
+            f"/api/events/{event_id}/screen-state",
+            json={
+                "competition_id": competition_id,
+                "mode": mode,
+                "payload_json": {"title": "Rimossa"},
+            },
+        )
+
+        assert response.status_code == 422
 
 
 def test_screen_websocket_receives_screen_state_updates(client: TestClient) -> None:
@@ -83,8 +100,8 @@ def test_screen_websocket_receives_screen_state_updates(client: TestClient) -> N
             f"/api/events/{event_id}/screen-state",
             json={
                 "competition_id": competition_id,
-                "mode": "show_qr",
-                "payload_json": {"title": "Vota ora"},
+                "mode": "show_podium",
+                "payload_json": {"title": "Podio"},
             },
         )
         update_message = websocket.receive_json()
@@ -93,7 +110,7 @@ def test_screen_websocket_receives_screen_state_updates(client: TestClient) -> N
     assert initial_message["screen_state"]["mode"] == "idle"
     assert update_message["type"] == "screen_state"
     assert update_message["screen_state"]["competition_id"] == competition_id
-    assert update_message["screen_state"]["mode"] == "show_qr"
+    assert update_message["screen_state"]["mode"] == "show_podium"
 
 
 def test_screen_supporting_endpoints_work_for_fresh_competition(client: TestClient) -> None:
@@ -107,8 +124,8 @@ def test_screen_supporting_endpoints_work_for_fresh_competition(client: TestClie
         f"/api/events/{event_id}/screen-state",
         json={
             "competition_id": competition_id,
-            "mode": "show_results",
-            "payload_json": {"title": "Classifica"},
+            "mode": "show_podium",
+            "payload_json": {"title": "Podio"},
         },
     )
 

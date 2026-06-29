@@ -125,13 +125,9 @@ export function competitionNamesForJudge(judge: JudgeRead, competitions: Competi
 export function screenModeLabel(mode: ScreenMode): string {
   const labels: Record<ScreenMode, string> = {
     idle: "Idle",
-    show_qr: "QR code",
-    voting_open: "Votazione aperta",
     countdown: "Countdown",
-    show_results: "Risultati",
     reveal_ranking: "Reveal",
     show_podium: "Podio",
-    show_final_winners: "Finale",
   };
   return labels[mode];
 }

@@ -20,6 +20,15 @@ if TYPE_CHECKING:
 
 class PublicVote(IdMixin, TimestampMixin, Base):
     __tablename__ = "public_votes"
+    __table_args__ = (
+        UniqueConstraint(
+            "voter_account_id",
+            "competition_id",
+            "participant_id",
+            "voting_session_id",
+            name="uq_public_vote_voter_competition_participant_session",
+        ),
+    )
 
     competition_id: Mapped[str] = mapped_column(
         ForeignKey("competitions.id", ondelete="CASCADE"),

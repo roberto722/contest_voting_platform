@@ -448,7 +448,7 @@ def test_public_vote_multiple_selection_single_choice(client: TestClient) -> Non
         headers=headers3,
     )
     assert resp_excess.status_code == 400
-    assert "exceeds max_votes_per_user" in resp_excess.json()["detail"].lower()
+    assert "at most 2" in resp_excess.json()["detail"].lower()
 
     # Vote with duplicates
     resp_dup = client.post(
@@ -460,7 +460,7 @@ def test_public_vote_multiple_selection_single_choice(client: TestClient) -> Non
         headers=headers3,
     )
     assert resp_dup.status_code == 400
-    assert "duplicate" in resp_dup.json()["detail"].lower()
+    assert "same participant" in resp_dup.json()["detail"].lower()
 
     # 4. Test self-vote block for multiple selection under single choice (voter 2 is Anna, cannot vote for Anna)
     headers2 = {
@@ -478,3 +478,52 @@ def test_public_vote_multiple_selection_single_choice(client: TestClient) -> Non
     assert resp_self.status_code == 409
     assert "cannot vote for themselves" in resp_self.json()["detail"].lower()
 
+
+def test_public_vote_limits_selection_to_three_participants(client: TestClient) -> None:
+    event_id = client.post("/api/events", json={"name": "Serata Max Three"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Contest Max Three",
+            "public_vote_method": "single_choice",
+            "allow_vote_update": False,
+            "max_votes_per_user": 5,
+            "max_votes_per_competition": 1,
+            "judge_voting_enabled": False,
+        },
+    ).json()["id"]
+    participant_ids = [
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": name.lower(), "display_name": name},
+        ).json()["id"]
+        for name in ["Anna", "Marco", "Luca", "Giulia"]
+    ]
+    voter_id, token = _create_voter_account(client, event_id, name="Votante Max")
+    live_response = client.patch(f"/api/events/{event_id}", json={"status": "live"})
+    assert live_response.status_code == 200
+    _open_voting(client, competition_id)
+
+    response = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        json={
+            "method": "single_choice",
+            "ranked_participant_ids": participant_ids,
+        },
+        headers={"X-Voter-Account-Id": voter_id, "X-Voter-Access-Token": token},
+    )
+
+    assert response.status_code == 400
+    assert "at most 3" in response.json()["detail"].lower()
+
+    duplicate_response = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        json={
+            "method": "single_choice",
+            "ranked_participant_ids": [participant_ids[0], participant_ids[0]],
+        },
+        headers={"X-Voter-Account-Id": voter_id, "X-Voter-Access-Token": token},
+    )
+
+    assert duplicate_response.status_code == 400
+    assert "same participant" in duplicate_response.json()["detail"].lower()

@@ -16,3 +16,14 @@ def get_competition_results(
     db: Annotated[Session, Depends(get_db)],
 ) -> CompetitionResultsRead:
     return scoring_service.get_competition_results(db, competition_id)
+
+
+@router.post(
+    "/api/competitions/{competition_id}/results/freeze",
+    response_model=CompetitionResultsRead,
+)
+def freeze_competition_results(
+    competition_id: str,
+    db: Annotated[Session, Depends(get_db)],
+) -> CompetitionResultsRead:
+    return scoring_service.freeze_competition_results(db, competition_id)

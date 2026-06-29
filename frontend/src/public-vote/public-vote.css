@@ -172,6 +172,11 @@ input:focus-visible {
   gap: 9px;
 }
 
+.judge-participant-index {
+  align-content: start;
+  padding-bottom: 12px;
+}
+
 .public-participant {
   --participant-bg: none;
   position: relative;
@@ -258,6 +263,44 @@ input:focus-visible {
   margin-top: 16px;
   border-top: 1px solid rgba(213, 165, 85, 0.35);
   padding-top: 14px;
+}
+
+.judge-score-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 12px;
+  border: 1px solid rgba(213, 165, 85, 0.35);
+  border-radius: 12px;
+  background: rgba(8, 8, 10, 0.72);
+  padding: 10px;
+}
+
+.judge-score-header div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.judge-score-header span {
+  color: #cfc0aa;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.judge-score-header strong {
+  color: #efc477;
+  overflow-wrap: anywhere;
+}
+
+.judge-back {
+  min-height: 42px;
+  border: 1px solid #6f604c;
+  border-radius: 10px;
+  background: rgba(6, 7, 9, 0.85);
+  color: #efc477;
+  font-weight: 800;
+  padding: 0 12px;
 }
 
 .public-criteria label > span {
@@ -582,4 +625,3 @@ input:focus-visible {
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
-

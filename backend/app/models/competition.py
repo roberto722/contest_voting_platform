@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.event import Event
     from app.models.judge import CompetitionJudge
     from app.models.participant import Participant
+    from app.models.result_snapshot import ResultSnapshot
     from app.models.screen import ScreenState
     from app.models.vote import JudgeVote, PublicVote
     from app.models.voting import VotingSession
@@ -75,5 +76,10 @@ class Competition(IdMixin, TimestampMixin, Base):
     judge_votes: Mapped[list[JudgeVote]] = relationship(
         back_populates="competition",
         cascade="all, delete-orphan",
+    )
+    result_snapshots: Mapped[list[ResultSnapshot]] = relationship(
+        back_populates="competition",
+        cascade="all, delete-orphan",
+        order_by="ResultSnapshot.created_at",
     )
     screen_states: Mapped[list[ScreenState]] = relationship(back_populates="competition")

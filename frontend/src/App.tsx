@@ -1,7 +1,9 @@
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { participantBackdrop, publicVoteHref } from "./public-vote/publicVote";
+import { countdownResetKey } from "./screen/countdown";
 import { podiumAssets, podiumDisplayOrder, podiumPercent } from "./screen/podium";
 import { GoldDustCanvas } from "./screen/GoldDustCanvas";
+import JudgePage from "./judge/JudgePage";
 import {
   clampRevealCount,
   nextRevealRank,
@@ -74,8 +76,14 @@ import type {
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const websocketBaseUrl = apiBaseUrl.replace(/^http/, "ws");
+const ADMIN_PIN = "151019";
 
 type AppView = "admin" | "judge" | "screen";
+type AppPage = "home" | "admin" | "screen";
+
+function absoluteAppUrl(path: string) {
+  return new URL(path, window.location.origin).toString();
+}
 
 type JudgeAccessRead = {
   judge_id: string;
@@ -232,8 +240,9 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export default function App() {
+  const page = currentAppPage();
   const [state, setState] = useState<AdminState>(emptyState);
-  const [view, setView] = useState<AppView>(initialViewFromUrl());
+  const view: AppView = "admin";
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("");
   const [adminTab, setAdminTab] = useState<AdminTab>("event");
@@ -740,7 +749,7 @@ export default function App() {
           public_vote_url:
             textValue(data, "public_vote_url") ||
             (selectedCompetitionId
-              ? `${window.location.origin}${publicVoteHref(selectedCompetitionId)}`
+              ? absoluteAppUrl(publicVoteHref(selectedCompetitionId))
               : ""),
           countdown_seconds: numberValue(data, "countdown_seconds", 90),
           reveal_upto: numberValue(data, "reveal_upto", 0),
@@ -774,50 +783,29 @@ export default function App() {
     }
   }
 
+  if (page === "home") {
+    return <HomePage />;
+  }
+
+  if (page === "screen") {
+    return <ScreenArea setMessage={setMessage} />;
+  }
+
   return (
+    <AdminPinGate>
     <main className={`admin-shell admin-shell-${view}`}>
       <header className="topbar">
         <div>
           <p className="eyebrow">Contest Voting Platform</p>
-          <h1>
-            {view === "admin" ? "Admin serata" : view === "judge" ? "Giudici" : "Schermo pubblico"}
-          </h1>
+          <h1>Admin serata</h1>
         </div>
         <div className="topbar-actions">
-          <div className="mode-switch">
-            <button
-              className={view === "admin" ? "active" : ""}
-              type="button"
-              onClick={() => setView("admin")}
-            >
-              Admin
-            </button>
-            <button
-              className={view === "judge" ? "active" : ""}
-              type="button"
-              onClick={() => setView("judge")}
-            >
-              Giudici
-            </button>
-            <button
-              className={view === "screen" ? "active" : ""}
-              type="button"
-              onClick={() => setView("screen")}
-            >
-              Schermo
-            </button>
-          </div>
           <div className={message.startsWith("Errore:") ? "status-pill error" : "status-pill"}>
             {message}
           </div>
         </div>
       </header>
 
-      {view === "judge" ? (
-        <JudgeArea setMessage={setMessage} />
-      ) : view === "screen" ? (
-        <ScreenArea setMessage={setMessage} />
-      ) : (
       <section className="workspace">
         <aside className="rail">
           <EventTab
@@ -916,7 +904,10 @@ export default function App() {
                           type="button"
                           style={{ padding: "6px 12px", fontSize: "0.85rem" }}
                           onClick={() => {
-                            const voteUrl = `${window.location.origin}/vote?eventId=${selectedEvent.id}`;
+                            const voteUrl = selectedCompetitionId
+                              ? absoluteAppUrl(publicVoteHref(selectedCompetitionId))
+                              : "";
+                            if (!voteUrl) return;
                             void navigator.clipboard.writeText(voteUrl);
                             setMessage("Link voto pubblico copiato!");
                           }}
@@ -1076,7 +1067,7 @@ export default function App() {
                     readOnly
                     value={
                       selectedEventId
-                        ? `${window.location.origin}?view=screen&eventId=${selectedEventId}`
+                        ? absoluteAppUrl(`/screen?eventId=${selectedEventId}`)
                         : ""
                     }
                   />
@@ -1086,7 +1077,7 @@ export default function App() {
                     onClick={() => {
                       if (!selectedEventId) return;
                       window.open(
-                        `${window.location.origin}?view=screen&eventId=${selectedEventId}`,
+                        absoluteAppUrl(`/screen?eventId=${selectedEventId}`),
                         "_blank",
                         "noopener,noreferrer"
                       );
@@ -1171,12 +1162,18 @@ export default function App() {
                       <button
                         type="button"
                         disabled={isRevealUpdating || revealedCount >= revealMaximum}
-                        onClick={() =>
+                        onClick={() => {
+                          if (upcomingRank !== null && upcomingRank <= 5) {
+                            const confirmMessage = upcomingRank === 1
+                              ? "⚠️ STAI PER RIVELARE IL VINCITORE (1ª posizione)! Confermi?"
+                              : `⚠️ Stai per rivelare la ${upcomingRank}ª posizione. Confermi?`;
+                            if (!window.confirm(confirmMessage)) return;
+                          }
                           run(
                             () => updateRevealCount(revealedCount + 1),
                             "Posizione rivelata",
-                          )
-                        }
+                          );
+                        }}
                       >
                         Rivela prossima
                       </button>
@@ -1210,7 +1207,6 @@ export default function App() {
           ) : null}
         </section>
       </section>
-      )}
       {deleteEventCandidate ? (
         <div className="modal-backdrop" role="presentation">
           <section aria-modal="true" className="confirm-modal" role="dialog">
@@ -1380,6 +1376,7 @@ export default function App() {
         </div>
       )}
     </main>
+    </AdminPinGate>
   );
 }
 
@@ -1430,6 +1427,61 @@ function StatusCapsules({
   );
 }
 
+function currentAppPage(): AppPage {
+  switch (window.location.pathname.replace(/\/$/, "") || "/") {
+    case "/admin":
+      return "admin";
+    case "/screen":
+      return "screen";
+    case "/judge":
+    case "/vote":
+    case "/":
+    default:
+      return "home";
+  }
+}
+
+function HomePage() {
+  return (
+    <main className="home-page" aria-label="Contest Voting Platform">
+      <img src="/quasanremo/brand/quasanremo_logo.png" alt="Contest Voting Platform" />
+    </main>
+  );
+}
+
+function AdminPinGate({ children }: { children: ReactNode }) {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("admin_pin_ok") === "true");
+  const [error, setError] = useState("");
+
+  if (unlocked) {
+    return <>{children}</>;
+  }
+
+  return (
+    <main className="admin-pin-page">
+      <form
+        className="admin-pin-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          if (String(data.get("pin")) === ADMIN_PIN) {
+            sessionStorage.setItem("admin_pin_ok", "true");
+            setUnlocked(true);
+            setError("");
+          } else {
+            setError("PIN non valido");
+          }
+        }}
+      >
+        <img src="/quasanremo/brand/quasanremo_logo.png" alt="Contest Voting Platform" />
+        <input name="pin" type="password" inputMode="numeric" placeholder="PIN admin" autoFocus />
+        <button type="submit">Entra</button>
+        {error ? <p role="alert">{error}</p> : null}
+      </form>
+    </main>
+  );
+}
+
 function WreathBadge({ rank }: { rank: number }) {
   if (rank >= 1 && rank <= 6) {
     return (
@@ -1444,15 +1496,7 @@ function WreathBadge({ rank }: { rank: number }) {
   return <span className="rank-text">{rank}</span>;
 }
 
-function getMockTrend(id: string) {
-  const hash = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const mod = hash % 3;
-  if (mod === 0) return { dir: "up" as const, val: "+1" };
-  if (mod === 1) return { dir: "down" as const, val: "-1" };
-  return { dir: "neutral" as const, val: "—" };
-}
-
-function IdleFogBackground() {
+function FogBackground() {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1479,8 +1523,8 @@ function IdleFogBackground() {
         midtoneColor: 0x9a6c2e,
         lowlightColor: 0x050506,
         baseColor: 0x090806,
-        blurFactor: 0.42,
-        speed: 1.15,
+        blurFactor: 0.45,
+        speed: 0.85,
         zoom: 0.74,
       });
     }
@@ -1553,12 +1597,18 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
   }
 
   const countdownValue = Math.max(0, remainingSeconds ?? countdownSeconds);
+  const countdownKey = countdownResetKey(state.screenState?.mode, countdownSeconds);
   const countdownMinutes = Math.floor(countdownValue / 60);
   const countdownRemainder = countdownValue % 60;
   const countdownLabel =
     countdownMinutes > 0
       ? `${countdownMinutes}:${String(countdownRemainder).padStart(2, "0")}`
       : String(countdownRemainder);
+  const fogVisible =
+    !state.screenState ||
+    state.screenState?.mode === "idle" ||
+    state.screenState?.mode === "countdown" ||
+    state.screenState?.mode === "reveal_ranking";
 
   async function run(action: () => Promise<void>, doneMessage: string) {
     try {
@@ -1629,11 +1679,8 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
   }, [state.activeEventId]);
 
   useEffect(() => {
-    const mode = state.screenState?.mode;
-    const initialSeconds = numberPayload(state.screenState, "countdown_seconds", 0);
-
-    if (mode === "countdown" && initialSeconds > 0) {
-      setRemainingSeconds(initialSeconds);
+    if (countdownKey !== "off") {
+      setRemainingSeconds(countdownSeconds);
       const timer = setInterval(() => {
         setRemainingSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : prev));
       }, 1000);
@@ -1641,7 +1688,7 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
     } else {
       setRemainingSeconds(null);
     }
-  }, [state.screenState?.mode, state.screenState?.payload_json]);
+  }, [countdownKey]);
 
   useEffect(() => {
     if (state.screenState) {
@@ -1670,8 +1717,8 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
         {state.screenState?.mode === "show_podium" ? (
           <GoldDustCanvas />
         ) : null}
-        {(state.screenState?.mode === "idle" || !state.screenState) ? (
-          <IdleFogBackground />
+        {fogVisible ? (
+          <FogBackground />
         ) : null}
         <div className="stage-decor-frame" />
 
@@ -1679,11 +1726,6 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
           <div className="stage-brand">
             <img src="/quasanremo/brand/quasanremo_logo.png" className="stage-brand-logo" alt="Logo" />
             <img src="/quasanremo/brand/logo-rectangular-transparent.png" className="stage-brand-wordmark" alt="Quasanremo International" />
-          </div>
-          <div className="stage-header-center">
-            <svg viewBox="0 0 24 24" className="stage-center-star" aria-hidden="true">
-              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-            </svg>
           </div>
           {!podiumMode ? (
             <StatusCapsules
@@ -1731,9 +1773,13 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
             ranking.length === 0 ? (
               <div className="stage-idle">In attesa della prossima posizione.</div>
             ) : (
-              <ol className="stage-ranking">
+              <ol className={`stage-ranking ${
+                allRanking.length <= 6 ? "ranking-cols-1" :
+                allRanking.length <= 12 ? "ranking-cols-2" :
+                allRanking.length <= 24 ? "ranking-cols-3" :
+                "ranking-cols-4"
+              }`}>
               {ranking.map((result, idx) => {
-                const trend = getMockTrend(result.participant_id);
                 const totalFinalScore = allRanking.reduce((acc, r) => acc + r.final_score, 0) || 1;
                 const percent = ((result.final_score / totalFinalScore) * 100).toFixed(2).replace('.', ',');
                 const votes = result.public_votes || Math.round(result.final_score * 3.5);
@@ -1742,27 +1788,16 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
                   <li key={result.participant_id} className={`rank-item-${result.rank}`}>
                     <div className="rank-position-col">
                       <WreathBadge rank={result.rank} />
-                      <div className={`trend-indicator trend-${trend.dir}`}>
-                        {trend.dir === "up" && <img src="/quasanremo/schermo/trend_up_plus_1.png" className="trend-icon" alt="+1" />}
-                        {trend.dir === "down" && <img src="/quasanremo/schermo/trend_down_minus_1.png" className="trend-icon" alt="-1" />}
-                        {trend.dir === "neutral" && <img src="/quasanremo/schermo/rank_stable.png" className="trend-icon" alt="stabile" />}
-                      </div>
                     </div>
                     <div
                       className="rank-avatar"
-                      style={{ backgroundImage: `url(/quasanremo/artists/artist-bg-0${(idx % 5) + 1}.webp)` }}
+                      style={{
+                        backgroundImage: `url(${participantBackdrop(
+                          allRanking.findIndex((r) => r.participant_id === result.participant_id)
+                        )})`,
+                      }}
                     />
                     <strong className="rank-name">{result.display_name}</strong>
-                    <div className="rank-progress-col">
-                      <div className="rank-votes-bar">
-                        <i
-                          className="rank-progress-fill"
-                          style={{ width: `${Math.max(8, (result.final_score / maxScore) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="rank-votes-count">{votes.toLocaleString("it-IT")} Voti</span>
-                    <span className="rank-percent">{percent}%</span>
                   </li>
                 );
               })}
@@ -1850,16 +1885,6 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
 
           {(state.screenState?.mode === "idle" || !state.screenState) ? (
             <div className="stage-idle-show">
-              <div className="idle-show-motion" aria-hidden="true">
-                <span className="idle-sweep idle-sweep-a" />
-                <span className="idle-sweep idle-sweep-b" />
-                <span className="idle-spark idle-spark-1" />
-                <span className="idle-spark idle-spark-2" />
-                <span className="idle-spark idle-spark-3" />
-                <span className="idle-spark idle-spark-4" />
-                <span className="idle-spark idle-spark-5" />
-                <span className="idle-spark idle-spark-6" />
-              </div>
               <div className="idle-show-content">
                 <img
                   src="/quasanremo/brand/quasanremo_logo.png"
@@ -1867,7 +1892,7 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
                   alt="Quasanremo"
                 />
                 <p>La serata sta per continuare</p>
-                <h3>{state.competition?.name ?? "Benvenuti alla serata"}</h3>
+                <h3>Bevi, ridi e divertiti</h3>
               </div>
             </div>
           ) : null}

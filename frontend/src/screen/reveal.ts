@@ -1,4 +1,4 @@
-export type RevealMode = "reveal_ranking" | "show_podium" | "show_final_winners";
+export type RevealMode = "reveal_ranking" | "show_podium";
 
 export function revealTotal(mode: RevealMode, resultCount: number): number {
   const safeResultCount = Math.max(0, Math.trunc(resultCount));
@@ -28,9 +28,9 @@ export function nextRevealRank(
     return safeTotal - (step - 1);
   }
   if (step === safeTotal - 1) {
-    return 2;
+    return 1;
   }
-  return 1;
+  return 2;
 }
 
 export function previousRevealCount(value: number, total: number): number {
@@ -53,11 +53,11 @@ export function visibleRevealedResults<T>(
   for (let i = total - 1; i >= 2; i--) {
     revealedIndices.push(i);
   }
-  if (total >= 2) {
-    revealedIndices.push(1);
-  }
   if (total >= 1) {
     revealedIndices.push(0);
+  }
+  if (total >= 2) {
+    revealedIndices.push(1);
   }
 
   const activeIndices = revealedIndices.slice(0, count);

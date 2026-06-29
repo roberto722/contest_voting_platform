@@ -2,6 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 
 
 import { participantBackdrop } from "../public-vote/publicVote";
 import EmojiSlider from "../components/EmojiSlider";
+import {
+  canOpenJudgeScoreSheet,
+  scoresForParticipant,
+  stateAfterSavedJudgeVote,
+} from "./judgeFlow";
 import "../public-vote/public-vote.css";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -128,6 +133,7 @@ export default function JudgePage() {
 
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [criteriaScores, setCriteriaScores] = useState<Record<string, number>>({});
+  const [scoreSheetOpen, setScoreSheetOpen] = useState(false);
 
   const [phase, setPhase] = useState<Phase>("access");
   const [error, setError] = useState("");
@@ -230,19 +236,14 @@ export default function JudgePage() {
       setStatus(statusData);
       setSavedVotes(mappedSavedVotes);
       setSelectedCompetitionId(compId);
+      setScoreSheetOpen(false);
 
       // Find first pending participant or select the first one
       const pending = activeParticipants.find((p) => !mappedSavedVotes[p.id])?.id;
       const initialPartId = pending ?? activeParticipants[0]?.id ?? "";
       setSelectedParticipantId(initialPartId);
 
-      // Initialize criteria scores
-      const initialScores: Record<string, number> = {};
-      const savedScores = mappedSavedVotes[initialPartId]?.scores ?? {};
-      for (const c of criteriaData) {
-        initialScores[c.id] = savedScores[c.id] ?? c.min_score;
-      }
-      setCriteriaScores(initialScores);
+      setCriteriaScores(scoresForParticipant(criteriaData, mappedSavedVotes, initialPartId));
       setPhase("ready");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Errore inatteso");
@@ -302,12 +303,8 @@ export default function JudgePage() {
 
   function handleParticipantSelect(participantId: string) {
     setSelectedParticipantId(participantId);
-    const saved = savedVotes[participantId];
-    const newScores: Record<string, number> = {};
-    for (const c of judgeCriteria) {
-      newScores[c.id] = saved?.scores[c.id] ?? c.min_score;
-    }
-    setCriteriaScores(newScores);
+    setCriteriaScores(scoresForParticipant(judgeCriteria, savedVotes, participantId));
+    setScoreSheetOpen(canOpenJudgeScoreSheet(participantId));
   }
 
   function isVoteDirty(): boolean {
@@ -426,11 +423,15 @@ export default function JudgePage() {
               text="Il voto è stato caricato sul server."
               action="Continua"
               onAction={() => {
-                // Find next pending or stay
-                const pending = participants.find((p) => !savedVotes[p.id])?.id;
-                if (pending) {
-                  handleParticipantSelect(pending);
-                }
+                const nextState = stateAfterSavedJudgeVote(
+                  participants,
+                  judgeCriteria,
+                  savedVotes,
+                  selectedParticipantId,
+                );
+                setSelectedParticipantId(nextState.selectedParticipantId);
+                setCriteriaScores(nextState.criteriaScores);
+                setScoreSheetOpen(canOpenJudgeScoreSheet(nextState.selectedParticipantId));
                 setPhase("ready");
               }}
             />
@@ -503,7 +504,7 @@ export default function JudgePage() {
 
         {phase === "ready" && access && selectedCompetitionId && competition && isSessionOpen ? (
           <>
-            <BrandHeader title="Valuta Artista" subtitle={competition.name} />
+            <BrandHeader title={scoreSheetOpen ? "Scheda voto" : "Scegli partecipante"} subtitle={competition.name} />
             <div className="public-context">
               <span>
                 Completamento:{" "}
@@ -512,26 +513,44 @@ export default function JudgePage() {
               <strong>● Votazione aperta</strong>
             </div>
 
-            <div className="public-participants">
-              {participants.map((p, idx) => (
-                <button
-                  key={p.id}
-                  className={p.id === selectedParticipantId ? "public-participant selected" : "public-participant"}
-                  onClick={() => handleParticipantSelect(p.id)}
-                  style={{ "--participant-bg": `url(${participantBackdrop(idx)})` } as CSSProperties}
-                  type="button"
-                >
-                  <span className="public-number">{String(idx + 1).padStart(2, "0")}</span>
-                  <span>{p.display_name}</span>
-                  {savedVotes[p.id] ? (
-                    <b aria-hidden="true">✓</b>
-                  ) : null}
-                </button>
-              ))}
-            </div>
+            {!scoreSheetOpen ? (
+              <div className="public-participants judge-participant-index">
+                {participants.map((p, idx) => (
+                  <button
+                    key={p.id}
+                    className={p.id === selectedParticipantId ? "public-participant selected" : "public-participant"}
+                    onClick={() => handleParticipantSelect(p.id)}
+                    style={{ "--participant-bg": `url(${participantBackdrop(idx)})` } as CSSProperties}
+                    type="button"
+                  >
+                    <span className="public-number">{String(idx + 1).padStart(2, "0")}</span>
+                    <span>{p.display_name}</span>
+                    {savedVotes[p.id] ? (
+                      <b aria-hidden="true">✓</b>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
-            {selectedParticipantId ? (
+            {scoreSheetOpen && selectedParticipantId ? (
               <>
+                <div className="judge-score-header">
+                  <button
+                    className="judge-back"
+                    type="button"
+                    onClick={() => setScoreSheetOpen(false)}
+                  >
+                    Indietro
+                  </button>
+                  <div>
+                    <span>Stai valutando</span>
+                    <strong>
+                      {participants.find((p) => p.id === selectedParticipantId)?.display_name}
+                    </strong>
+                  </div>
+                </div>
+
                 <div className="public-criteria">
                   {judgeCriteria.map((c) => {
                     const val = criteriaScores[c.id] ?? c.min_score;

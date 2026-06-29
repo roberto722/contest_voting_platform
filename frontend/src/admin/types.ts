@@ -11,13 +11,9 @@ export type PublicVoteMethod = "single_choice" | "ranked_choice" | "criteria_rat
 export type VotingSessionStatus = "open" | "closed" | "cancelled";
 export type ScreenMode =
   | "idle"
-  | "show_qr"
-  | "voting_open"
   | "countdown"
-  | "show_results"
   | "reveal_ranking"
-  | "show_podium"
-  | "show_final_winners";
+  | "show_podium";
 
 export type EventRead = {
   id: string;
@@ -95,14 +91,31 @@ export type VotingSessionRead = {
 
 export type ResultEntry = {
   participant_id: string;
+  participant_name: string;
   display_name: string;
   rank: number;
   final_score: number;
-  public_score: { normalized_score: number; raw_score: number };
-  judge_score: { normalized_score: number; raw_score: number };
+  public_score: number;
+  judge_score: number;
+  public_votes: number;
+  judge_votes_count: number;
+  details: {
+    public?: {
+      votes: number;
+      max_votes: number;
+      formula: string;
+    };
+    judges?: {
+      criteria_breakdown: unknown[];
+      judges_completed: number;
+    };
+  };
 };
 
 export type ResultsRead = {
+  competition_id: string;
+  voting_session_id: string | null;
+  is_final: boolean;
   results: ResultEntry[];
 };
 

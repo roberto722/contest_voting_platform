@@ -11,6 +11,7 @@ from app.models.enums import (
 from app.models.event import Event
 from app.models.judge import CompetitionJudge, Judge
 from app.models.participant import Participant
+from app.models.result_snapshot import ResultSnapshot
 from app.models.screen import ScreenState
 from app.models.vote import JudgeCriterionVote, JudgeVote, PublicCriterionVote, PublicVote
 from app.models.voter_account import VoterAccount
@@ -32,6 +33,7 @@ __all__ = [
     "PublicVote",
     "PublicVoteCriterion",
     "PublicVoteMethod",
+    "ResultSnapshot",
     "ScreenMode",
     "ScreenState",
     "VoterAccount",

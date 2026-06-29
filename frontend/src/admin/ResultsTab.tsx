@@ -29,10 +29,12 @@ export function ResultsTab({
               <strong>
                 {result.rank}. {result.display_name}
               </strong>
-              <span>{result.final_score.toFixed(2)}</span>
+              <span>Finale {result.final_score.toFixed(2)}</span>
               <small>
-                Pub {result.public_score.normalized_score.toFixed(1)} / Giu{" "}
-                {result.judge_score.normalized_score.toFixed(1)}
+                Pubblico {result.public_score.toFixed(2)} / Giudici{" "}
+                {result.judge_score.toFixed(2)} / Voti pubblico{" "}
+                {result.public_votes} / Giudici completati{" "}
+                {result.judge_votes_count}
               </small>
             </li>
           ))}

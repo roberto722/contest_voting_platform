@@ -25,30 +25,28 @@ test("torna indietro e azzera senza superare i limiti", () => {
   assert.equal(previousRevealCount(-1, 5), 0);
 });
 
-test("rivela il podio nel flusso terzo, secondo, primo", () => {
+test("rivela il podio lasciando il secondo posto come ultimo reveal", () => {
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 0), []);
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 1), ["terzo"]);
-  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 2), ["secondo", "terzo"]);
+  assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 2), ["primo", "terzo"]);
   assert.deepEqual(visibleRevealedResults(ranking.slice(0, 3), "show_podium", 3), ["primo", "secondo", "terzo"]);
-  assert.deepEqual(visibleRevealedResults(["primo", "secondo"], "show_final_winners", 1), ["secondo"]);
 });
 
 test("limita contatori invalidi e calcola la prossima posizione", () => {
   assert.equal(revealTotal("reveal_ranking", 7), 7);
   assert.equal(revealTotal("show_podium", 7), 5);
-  assert.equal(revealTotal("show_final_winners", 2), 2);
   assert.equal(clampRevealCount(-3, 4), 0);
   assert.equal(clampRevealCount(8, 4), 4);
   assert.equal(nextRevealRank(4, 0), 4);
   assert.equal(nextRevealRank(4, 3), 1);
   assert.equal(nextRevealRank(4, 4), null);
 
-  // Test podium reveal sequence for 5 places
+  // Test podium reveal sequence for 5 places: 5, 4, 3, 1, 2.
   assert.equal(nextRevealRank(5, 0, "show_podium"), 5);
   assert.equal(nextRevealRank(5, 1, "show_podium"), 4);
   assert.equal(nextRevealRank(5, 2, "show_podium"), 3);
-  assert.equal(nextRevealRank(5, 3, "show_podium"), 2);
-  assert.equal(nextRevealRank(5, 4, "show_podium"), 1);
+  assert.equal(nextRevealRank(5, 3, "show_podium"), 1);
+  assert.equal(nextRevealRank(5, 4, "show_podium"), 2);
 });
 
 test("non modifica l'array ordinato ricevuto", () => {

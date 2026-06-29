@@ -139,8 +139,8 @@ def test_screen_state_stores_json_payloads(session: Session) -> None:
     screen_state = ScreenState(
         event=event,
         competition=competition,
-        mode=ScreenMode.SHOW_RESULTS,
-        payload_json={"title": "Classifica"},
+        mode=ScreenMode.SHOW_PODIUM,
+        payload_json={"title": "Podio"},
     )
 
     session.add_all([screen_state])
@@ -149,8 +149,8 @@ def test_screen_state_stores_json_payloads(session: Session) -> None:
     saved_screen = session.scalar(select(ScreenState))
 
     assert saved_screen is not None
-    assert saved_screen.mode is ScreenMode.SHOW_RESULTS
-    assert saved_screen.payload_json["title"] == "Classifica"
+    assert saved_screen.mode is ScreenMode.SHOW_PODIUM
+    assert saved_screen.payload_json["title"] == "Podio"
 
 
 
@@ -170,4 +170,3 @@ def test_voter_account_creation(session: Session) -> None:
     assert va.id is not None
     assert va.event_id == event.id
     assert va.access_token == "some-uuid-token"
-

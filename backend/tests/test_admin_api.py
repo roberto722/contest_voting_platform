@@ -312,8 +312,8 @@ def test_delete_event_removes_all_associated_data(
             f"/api/events/{event_id}/screen-state",
             json={
                 "competition_id": competition_id,
-                "mode": "show_results",
-                "payload_json": {"title": "Classifica"},
+                "mode": "show_podium",
+                "payload_json": {"title": "Podio"},
             },
         ).status_code
         == 200
@@ -545,5 +545,4 @@ def test_seed_competition_fake_data(client: TestClient, db_session: Session) -> 
     )
     assert seed_again_res.status_code == 409
     assert "già dati" in seed_again_res.json()["detail"]
-
 
