@@ -6,6 +6,8 @@ const frontendUrl = (__ENV.FRONTEND_URL || "").replace(/\/$/, "");
 const eventId = requiredEnv("EVENT_ID");
 const competitionId = requiredEnv("COMPETITION_ID");
 const voteMethod = __ENV.VOTE_METHOD || "single_choice";
+const cloudProjectId = Number(__ENV.K6_CLOUD_PROJECT_ID || 0);
+const cloudLoadZone = __ENV.K6_CLOUD_LOAD_ZONE || "amazon:de:frankfurt";
 const accessCodes = (__ENV.LOAD_TEST_ACCESS_CODES || "")
   .split(/\r?\n/)
   .map((line) => line.trim())
@@ -21,6 +23,16 @@ const judgeCredentials = (__ENV.JUDGE_ACCESS_CODES || "")
   .filter((item) => item.judgeId && item.accessCode);
 
 export const options = {
+  ...(cloudProjectId
+    ? {
+        cloud: {
+          projectID: cloudProjectId,
+          distribution: {
+            [cloudLoadZone]: { loadZone: cloudLoadZone, percent: 100 },
+          },
+        },
+      }
+    : {}),
   scenarios: {
     internet_50_sessions: {
       executor: "per-vu-iterations",
@@ -74,8 +86,9 @@ export default function (data) {
 }
 
 function voteAsUser(accessCode, participantIds) {
-  const access = getJson(
-    `${backendUrl}/api/vote/access?event_id=${encodeURIComponent(eventId)}&access_code=${encodeURIComponent(accessCode)}`,
+  const access = postJson(
+    `${backendUrl}/api/vote/access`,
+    { event_id: eventId, access_code: accessCode },
     "voter_access"
   );
   const voterAccountId = access.voter_account_id || access.id;
