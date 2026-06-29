@@ -23,6 +23,10 @@ on:
         description: Public vote method
         required: true
         default: single_choice
+      load_zone:
+        description: Grafana k6 Cloud load zone
+        required: true
+        default: amazon:de:frankfurt
 
 jobs:
   k6-cloud:
@@ -44,4 +48,5 @@ jobs:
           EVENT_ID: ${{ inputs.event_id }}
           COMPETITION_ID: ${{ inputs.competition_id }}
           VOTE_METHOD: ${{ inputs.vote_method }}
+          K6_CLOUD_LOAD_ZONE: ${{ inputs.load_zone }}
         run: k6 cloud run --include-system-env-vars load-tests/k6-50-sessions.js
