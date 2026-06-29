@@ -36,6 +36,7 @@ jobs:
         env:
           K6_CLOUD_TOKEN: ${{ secrets.K6_CLOUD_TOKEN }}
           K6_CLOUD_STACK_ID: ${{ secrets.K6_CLOUD_STACK_ID }}
+          K6_CLOUD_PROJECT_ID: ${{ secrets.K6_CLOUD_PROJECT_ID }}
           LOAD_TEST_ACCESS_CODES: ${{ secrets.LOAD_TEST_ACCESS_CODES }}
           JUDGE_ACCESS_CODES: ${{ secrets.JUDGE_ACCESS_CODES }}
           BACKEND_URL: ${{ inputs.backend_url }}
