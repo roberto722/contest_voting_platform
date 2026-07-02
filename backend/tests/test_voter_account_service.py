@@ -1,12 +1,11 @@
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-
 from app.db import Base
-from app.models import Competition, Event, Participant, VoterAccount
+from app.models import Competition, Event, Participant
 from app.services import voter_account_service
 from app.services.admin_service import AdminStateError
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture()
@@ -85,7 +84,7 @@ def test_link_participant(db_session, event, participant):
         db_session, event.id, {"display_name": "V", "notes": None}
     )
     updated = voter_account_service.link_participant(db_session, va.id, participant.id)
-    assert updated.voter_account_id == va.id
+    assert updated.voter_account_ids == [va.id]
 
 
 def test_link_participant_wrong_event(db_session, event, participant):
@@ -107,4 +106,4 @@ def test_unlink_participant(db_session, event, participant):
     voter_account_service.link_participant(db_session, va.id, participant.id)
     voter_account_service.unlink_participant(db_session, va.id, participant.id)
     db_session.refresh(participant)
-    assert participant.voter_account_id is None
+    assert participant.voter_account_ids == []

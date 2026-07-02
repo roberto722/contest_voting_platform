@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.models.mixins import IdMixin, TimestampMixin
+from app.models.participant import participant_voter_accounts
 
 if TYPE_CHECKING:
     from app.models.event import Event
@@ -28,5 +29,8 @@ class VoterAccount(IdMixin, TimestampMixin, Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     event: Mapped[Event] = relationship(back_populates="voter_accounts")
-    participants: Mapped[list[Participant]] = relationship(back_populates="voter_account")
+    participants: Mapped[list[Participant]] = relationship(
+        secondary=participant_voter_accounts,
+        back_populates="voter_accounts",
+    )
     public_votes: Mapped[list[PublicVote]] = relationship(back_populates="voter_account")

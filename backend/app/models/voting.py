@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -30,6 +30,8 @@ class VotingSession(IdMixin, TimestampMixin, Base):
         default=VotingSessionStatus.OPEN,
         nullable=False,
     )
+    public_voting_open: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    judge_voting_open: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     opened_by_admin_id: Mapped[str | None] = mapped_column(String(36))

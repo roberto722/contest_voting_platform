@@ -32,9 +32,12 @@ export function ParticipantsTab({
           <p className="empty">Nessun partecipante aggiunto.</p>
         )}
         {participants.map((participant) => {
-          const linkedAccount = voterAccounts.find(
-            (va) => va.id === participant.voter_account_id
-          );
+          const voterAccountIds = participant.voter_account_ids.length
+            ? participant.voter_account_ids
+            : participant.voter_account_id
+              ? [participant.voter_account_id]
+              : [];
+          const linkedAccounts = voterAccounts.filter((va) => voterAccountIds.includes(va.id));
 
           return (
             <div className="row compact participant-row" key={participant.id}>
@@ -42,9 +45,13 @@ export function ParticipantsTab({
                 <strong>{participant.display_name}</strong>
                 <small>Ordine: #{participant.order_index}</small>
                 <div style={{ marginTop: "4px" }}>
-                  <span className="voter-links-label" style={{ fontSize: "0.75rem", marginRight: "6px" }}>Votante collegato:</span>
-                  {linkedAccount ? (
-                    <span className="voter-link-chip" style={{ fontSize: "0.75rem", padding: "1px 6px" }}>{linkedAccount.display_name}</span>
+                  <span className="voter-links-label" style={{ fontSize: "0.75rem", marginRight: "6px" }}>Votanti collegati:</span>
+                  {linkedAccounts.length > 0 ? (
+                    linkedAccounts.map((account) => (
+                      <span key={account.id} className="voter-link-chip" style={{ fontSize: "0.75rem", padding: "1px 6px" }}>
+                        {account.display_name}
+                      </span>
+                    ))
                   ) : (
                     <span className="form-hint" style={{ display: "inline", fontSize: "0.75rem" }}>nessun account votante</span>
                   )}

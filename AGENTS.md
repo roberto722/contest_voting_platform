@@ -94,6 +94,8 @@ Implementa il dominio intorno a queste entita principali:
 - `Competition`: competizione dentro un evento, con metodi di voto, accesso, pesi,
   stato e flag di configurazione.
 - `Participant`: partecipante ordinabile e attivabile.
+- `ParticipantVoterAccount`: associazione molti-a-molti tra partecipanti e account votanti,
+  usata quando un partecipante rappresenta una squadra.
 - `PublicVoteCriterion`: criteri per voto pubblico a punteggio, quando usati.
 - `JudgeCriterion`: criteri configurabili per i giudici.
 - `Judge`: giudice con accesso personale tramite codice o link.
@@ -197,6 +199,9 @@ dall'admin: deriva automaticamente da una configurazione valida calcolata dal ba
 - Ogni `Judge` puo essere assegnato a piu `Competition` dello stesso evento tramite
   `CompetitionJudge`; l'interfaccia admin deve permettere multi-assegnazione senza
   dipendere solo dalla competizione correntemente selezionata.
+- Ogni `Participant` puo essere associato a piu account votanti dello stesso evento;
+  tutti gli account associati sono considerati parte del partecipante/squadra e non
+  possono votare per quel partecipante.
 - Il pubblico non richiede login; usa token anonimo lato client salvato in localStorage o
   cookie e hash lato database.
 
@@ -330,7 +335,7 @@ comparire o essere attivo solo quando il backend indica che l'apertura e consent
 
 Area pubblico:
 
-- i link diretti e i QR devono usare `/vote?competitionId=<id>`;
+- i link diretti e i QR devono usare `/vote?eventId=<id>`;
 - il CSS Quasanremo del voto pubblico non deve modificare admin, giudici o schermo;
 - accesso competizione;
 - voto `single_choice`;

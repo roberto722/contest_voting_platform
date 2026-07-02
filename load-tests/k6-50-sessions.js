@@ -8,6 +8,7 @@ const competitionId = requiredEnv("COMPETITION_ID");
 const voteMethod = __ENV.VOTE_METHOD || "single_choice";
 const cloudProjectId = Number(__ENV.K6_CLOUD_PROJECT_ID || 0);
 const cloudLoadZone = __ENV.K6_CLOUD_LOAD_ZONE || "amazon:de:frankfurt";
+const voteStaggerSeconds = Number(__ENV.VOTE_STAGGER_SECONDS || 10);
 const accessCodes = (__ENV.LOAD_TEST_ACCESS_CODES || "")
   .split(/\r?\n/)
   .map((line) => line.trim())
@@ -69,7 +70,7 @@ export function setup() {
 }
 
 export default function (data) {
-  sleep(Math.random() * 2);
+  sleep((__VU / 50) * voteStaggerSeconds);
 
   if (__VU <= accessCodes.length) {
     voteAsUser(accessCodes[__VU - 1], data.activeParticipants);
@@ -115,16 +116,20 @@ function voteAsUser(accessCode, participantIds) {
   check(res, {
     "vote accepted or already handled": (r) => [200, 201, 409].includes(r.status),
   });
+  logFailed("public_vote", res);
 
   getJson(`${backendUrl}/api/competitions/${competitionId}/public-votes/summary`, "summary");
 }
 
 function spectate() {
   if (frontendUrl) {
-    check(
-      http.get(`${frontendUrl}/vote?competitionId=${encodeURIComponent(competitionId)}`, {
+  check(
+      withFailureLog(
+        "frontend_vote_page",
+        http.get(`${frontendUrl}/vote?eventId=${encodeURIComponent(eventId)}`, {
         tags: { flow: "frontend_vote_page" },
-      }),
+        })
+      ),
       {
         "vote page reachable": (r) => r.status < 500,
       }
@@ -169,6 +174,7 @@ function buildVotePayload(participantId, participantIds) {
 function getJson(url, label) {
   const res = http.get(url, { tags: { flow: label } });
   check(res, { [`${label} status ok`]: (r) => r.status >= 200 && r.status < 300 });
+  logFailed(label, res);
   if (res.status < 200 || res.status >= 300) {
     fail(`${label} failed with ${res.status}: ${res.body}`);
   }
@@ -181,6 +187,7 @@ function postJson(url, payload, label) {
     tags: { flow: label },
   });
   check(res, { [`${label} status ok`]: (r) => r.status >= 200 && r.status < 300 });
+  logFailed(label, res);
   if (res.status < 200 || res.status >= 300) {
     fail(`${label} failed with ${res.status}: ${res.body}`);
   }
@@ -199,4 +206,14 @@ function requiredEnv(name) {
     fail(`${name} env var is required`);
   }
   return __ENV[name];
+}
+
+function withFailureLog(label, res) {
+  logFailed(label, res);
+  return res;
+}
+
+function logFailed(label, res) {
+  if (res.status < 400) return;
+  console.warn(`${label} failed: status=${res.status} body=${String(res.body || "").slice(0, 300)}`);
 }

@@ -1,7 +1,7 @@
 from secrets import token_urlsafe
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -14,6 +14,7 @@ from app.models import (
     Participant,
     PublicVoteCriterion,
     PublicVoteMethod,
+    VoterAccount,
 )
 from app.models.enums import CompetitionStatus, EventStatus
 from app.services import audit_service, setup_service
@@ -236,10 +237,70 @@ def delete_competition(db: Session, competition_id: str) -> None:
     db.commit()
 
 
+def _pop_participant_voter_account_ids(data: dict[str, Any], *, update: bool) -> list[str] | None:
+    if "voter_account_ids" not in data:
+        legacy_id = data.get("voter_account_id")
+        return [legacy_id] if legacy_id else ([] if not update else None)
+    ids = list(dict.fromkeys(data.pop("voter_account_ids") or []))
+    legacy_id = data.get("voter_account_id")
+    if legacy_id and legacy_id not in ids:
+        ids.insert(0, legacy_id)
+    data["voter_account_id"] = ids[0] if ids else None
+    return ids
+
+
+def _get_event_voter_accounts(
+    db: Session,
+    event_id: str,
+    competition_id: str,
+    participant_id: str,
+    voter_account_ids: list[str],
+) -> list[VoterAccount]:
+    if not voter_account_ids:
+        return []
+    accounts = list(
+        db.scalars(
+            select(VoterAccount).where(
+                VoterAccount.event_id == event_id,
+                VoterAccount.id.in_(voter_account_ids),
+            )
+        )
+    )
+    if len(accounts) != len(set(voter_account_ids)):
+        raise ResourceNotFound("voter_account", ",".join(voter_account_ids))
+    existing = db.scalar(
+        select(Participant).where(
+            Participant.competition_id == competition_id,
+            Participant.id != participant_id,
+            or_(
+                Participant.voter_account_id.in_(voter_account_ids),
+                Participant.voter_accounts.any(VoterAccount.id.in_(voter_account_ids)),
+            ),
+        )
+    )
+    if existing is not None:
+        raise AdminStateError(
+            "voter account is already linked to another participant in this competition",
+            status_code=409,
+        )
+    by_id = {account.id: account for account in accounts}
+    return [by_id[voter_account_id] for voter_account_id in voter_account_ids]
+
+
 def create_participant(db: Session, competition_id: str, data: dict[str, Any]) -> Participant:
     competition = get_competition(db, competition_id)
     _ensure_competition_configuration_editable(competition)
+    voter_account_ids = _pop_participant_voter_account_ids(data, update=False) or []
     participant = _save(db, Participant(competition=competition, **data))
+    participant.voter_accounts = _get_event_voter_accounts(
+        db,
+        competition.event_id,
+        competition.id,
+        participant.id,
+        voter_account_ids,
+    )
+    db.commit()
+    db.refresh(participant)
     refresh_competition_status(db, competition_id)
     _audit(
         db,
@@ -271,7 +332,18 @@ def get_participant(db: Session, participant_id: str) -> Participant:
 def update_participant(db: Session, participant_id: str, data: dict[str, Any]) -> Participant:
     participant = get_participant(db, participant_id)
     _ensure_competition_configuration_editable(participant.competition)
+    voter_account_ids = _pop_participant_voter_account_ids(data, update=True)
     participant = _update(db, participant, data)
+    if voter_account_ids is not None:
+        participant.voter_accounts = _get_event_voter_accounts(
+            db,
+            participant.competition.event_id,
+            participant.competition_id,
+            participant.id,
+            voter_account_ids,
+        )
+        db.commit()
+        db.refresh(participant)
     refresh_competition_status(db, participant.competition_id)
     _audit(
         db,

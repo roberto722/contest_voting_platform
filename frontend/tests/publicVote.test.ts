@@ -17,7 +17,7 @@ test("riconosce soltanto la route pubblica", () => {
 });
 
 test("costruisce link pubblici codificando l'id", () => {
-  assert.equal(publicVoteHref("competition 1"), "/vote?competitionId=competition%201");
+  assert.equal(publicVoteHref("event 1"), "/vote?eventId=event%201");
 });
 
 test("distingue sessione aperta, attesa e chiusa", () => {

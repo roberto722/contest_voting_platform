@@ -27,6 +27,10 @@ on:
         description: Grafana k6 Cloud load zone
         required: true
         default: amazon:de:frankfurt
+      vote_stagger_seconds:
+        description: Seconds used to spread the 50 sessions
+        required: true
+        default: "10"
 
 jobs:
   k6-cloud:
@@ -49,4 +53,5 @@ jobs:
           COMPETITION_ID: ${{ inputs.competition_id }}
           VOTE_METHOD: ${{ inputs.vote_method }}
           K6_CLOUD_LOAD_ZONE: ${{ inputs.load_zone }}
+          VOTE_STAGGER_SECONDS: ${{ inputs.vote_stagger_seconds }}
         run: k6 cloud run --include-system-env-vars load-tests/k6-50-sessions.js

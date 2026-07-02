@@ -57,5 +57,6 @@ class SelfExclusionRead(BaseModel):
 
 
 class VoterVotingStatusRead(BaseModel):
+    voting_open: bool
     has_voted: bool
     allow_vote_update: bool

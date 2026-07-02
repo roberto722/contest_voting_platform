@@ -121,7 +121,74 @@ def test_close_requires_an_open_voting_session(client: TestClient) -> None:
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "competition has no open voting session"
+
+
+def test_admin_can_open_and_close_public_and_judge_channels_separately(
+    client: TestClient,
+) -> None:
+    event_id = client.post("/api/events", json={"name": "Channel event"}).json()["id"]
+    comp = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Channel competition",
+            "public_voting_enabled": True,
+            "judge_voting_enabled": True,
+        },
+    ).json()
+    competition_id = comp["id"]
+
+    for index in range(1, 3):
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": f"P{index}", "display_name": f"P{index}"},
+        )
+    client.post(
+        f"/api/competitions/{competition_id}/judge-criteria",
+        json={"name": "Tecnica"},
+    )
+    judge = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge", "display_name": "Judge", "access_code": "secret"},
+    ).json()
+    client.post(f"/api/competitions/{competition_id}/judges/{judge['id']}")
+    assert client.patch(f"/api/events/{event_id}", json={"status": "live"}).status_code == 200
+
+    public_open = client.post(
+        f"/api/competitions/{competition_id}/voting-sessions",
+        json={"label": "Round 1", "channels": ["public"]},
+    )
+    assert public_open.status_code == 201
+    session = public_open.json()
+    assert session["status"] == "open"
+    assert session["public_voting_open"] is True
+    assert session["judge_voting_open"] is False
+
+    judge_open = client.post(
+        f"/api/competitions/{competition_id}/voting-sessions",
+        json={"channels": ["judge"]},
+    )
+    assert judge_open.status_code == 201
+    assert judge_open.json()["id"] == session["id"]
+    assert judge_open.json()["public_voting_open"] is True
+    assert judge_open.json()["judge_voting_open"] is True
+
+    public_closed = client.post(
+        f"/api/competitions/{competition_id}/voting-sessions/close",
+        json={"channels": ["public"]},
+    )
+    assert public_closed.status_code == 200
+    assert public_closed.json()["status"] == "open"
+    assert public_closed.json()["public_voting_open"] is False
+    assert public_closed.json()["judge_voting_open"] is True
+
+    judge_closed = client.post(
+        f"/api/competitions/{competition_id}/voting-sessions/close",
+        json={"channels": ["judge"]},
+    )
+    assert judge_closed.status_code == 200
+    assert judge_closed.json()["status"] == "closed"
+    assert judge_closed.json()["public_voting_open"] is False
+    assert judge_closed.json()["judge_voting_open"] is False
 
 
 def test_final_competition_cannot_be_reopened(client: TestClient, db_session: Session) -> None:

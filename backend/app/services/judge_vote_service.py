@@ -39,7 +39,7 @@ def submit_judge_vote(
     judge = access_service.verify_judge_access(db, payload.judge_id, payload.access_code)
     competition = get_competition(db, competition_id)
     _ensure_judge_can_vote(db, competition, judge.id)
-    voting_session = ensure_can_accept_votes(db, competition_id)
+    voting_session = ensure_can_accept_votes(db, competition_id, channel="judge")
     participant = _get_active_participant(db, competition.id, payload.participant_id)
 
     _validate_criteria_payload(db, competition.id, payload.criteria)

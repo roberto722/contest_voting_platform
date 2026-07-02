@@ -431,3 +431,222 @@ def test_freeze_results_returns_snapshot_and_does_not_recalculate(
     assert response.status_code == 200
     assert response.json()["is_final"] is True
     assert response.json()["results"] == frozen_results
+
+
+def test_results_distributes_partial_team_public_votes(
+    db_session: Session, client: TestClient
+) -> None:
+    competition, participants, voting_session = _create_competition(
+        db_session,
+        public_weight=100,
+        judge_weight=0,
+        judge_voting_enabled=False,
+    )
+    team_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Team member 1",
+        access_code_hash="team-member-1-hash",
+        access_token="team-member-1",
+    )
+    absent_team_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Team member 2",
+        access_code_hash="team-member-2-hash",
+        access_token="team-member-2",
+    )
+    outside_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Outside voter",
+        access_code_hash="outside-voter-hash",
+        access_token="outside-voter",
+    )
+    participants[0].voter_accounts.extend([team_voter, absent_team_voter])
+    db_session.add_all([team_voter, absent_team_voter, outside_voter])
+    db_session.flush()
+    db_session.add_all(
+        [
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[1].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[0].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[0].id,
+                voter_account_id=outside_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[2].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/api/competitions/{competition.id}/results")
+
+    assert response.status_code == 200
+    results = {item["participant_id"]: item for item in response.json()["results"]}
+    assert results[participants[0].id]["public_votes"] == pytest.approx(1 + 0.5 / 3)
+    assert results[participants[1].id]["public_votes"] == pytest.approx(0.5 / 3)
+    assert results[participants[2].id]["public_votes"] == pytest.approx(0.5 / 3)
+
+
+def test_results_distributes_partial_team_public_votes(
+    db_session: Session, client: TestClient
+) -> None:
+    competition, participants, voting_session = _create_competition(
+        db_session,
+        public_weight=100,
+        judge_weight=0,
+        judge_voting_enabled=False,
+    )
+    team_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Team member 1",
+        access_code_hash="team-member-1-hash",
+        access_token="team-member-1",
+    )
+    absent_team_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Team member 2",
+        access_code_hash="team-member-2-hash",
+        access_token="team-member-2",
+    )
+    outside_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Outside voter",
+        access_code_hash="outside-voter-hash",
+        access_token="outside-voter",
+    )
+    participants[0].voter_accounts.extend([team_voter, absent_team_voter])
+    db_session.add_all([team_voter, absent_team_voter, outside_voter])
+    db_session.flush()
+    db_session.add_all(
+        [
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[1].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[0].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[0].id,
+                voter_account_id=outside_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[2].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/api/competitions/{competition.id}/results")
+
+    assert response.status_code == 200
+    results = {item["participant_id"]: item for item in response.json()["results"]}
+    assert results[participants[0].id]["public_votes"] == pytest.approx(1 + 0.5 / 3)
+    assert results[participants[1].id]["public_votes"] == pytest.approx(0.5 / 3)
+    assert results[participants[2].id]["public_votes"] == pytest.approx(0.5 / 3)
+
+
+def test_results_distributes_partial_team_public_votes(
+    db_session: Session, client: TestClient
+) -> None:
+    competition, participants, voting_session = _create_competition(
+        db_session,
+        public_weight=100,
+        judge_weight=0,
+        judge_voting_enabled=False,
+    )
+    team_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Team member 1",
+        access_code_hash="team-member-1-hash",
+        access_token="team-member-1",
+    )
+    absent_team_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Team member 2",
+        access_code_hash="team-member-2-hash",
+        access_token="team-member-2",
+    )
+    outside_voter = VoterAccount(
+        event_id=competition.event_id,
+        display_name="Outside voter",
+        access_code_hash="outside-voter-hash",
+        access_token="outside-voter",
+    )
+    participants[0].voter_accounts.extend([team_voter, absent_team_voter])
+    db_session.add_all([team_voter, absent_team_voter, outside_voter])
+    db_session.flush()
+    db_session.add_all(
+        [
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[1].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[0].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[0].id,
+                voter_account_id=outside_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+            PublicVote(
+                competition_id=competition.id,
+                voting_session_id=voting_session.id,
+                participant_id=participants[2].id,
+                voter_account_id=team_voter.id,
+                vote_method=PublicVoteMethod.SINGLE_CHOICE,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/api/competitions/{competition.id}/results")
+
+    assert response.status_code == 200
+    results = {item["participant_id"]: item for item in response.json()["results"]}
+    assert results[participants[0].id]["public_votes"] == pytest.approx(1 + 0.5 / 3)
+    assert results[participants[1].id]["public_votes"] == pytest.approx(0.5 / 3)
+    assert results[participants[2].id]["public_votes"] == pytest.approx(0.5 / 3)

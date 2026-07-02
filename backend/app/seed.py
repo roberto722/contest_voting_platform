@@ -96,7 +96,9 @@ def create_demo_data(session: Session) -> Event:
     # Link first 4 voter accounts to the corresponding participants
     # Each participant-voter is linked in BOTH competitions
     for i, (va, _) in enumerate(voter_accounts[:4]):
+        performance_participants[i].voter_accounts.append(va)
         performance_participants[i].voter_account_id = va.id
+        costume_participants[i].voter_accounts.append(va)
         costume_participants[i].voter_account_id = va.id
 
     return event

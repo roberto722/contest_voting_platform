@@ -527,3 +527,282 @@ def test_public_vote_limits_selection_to_three_participants(client: TestClient) 
 
     assert duplicate_response.status_code == 400
     assert "same participant" in duplicate_response.json()["detail"].lower()
+def test_public_status_is_closed_when_only_judge_channel_is_open(client: TestClient) -> None:
+    event_id = client.post("/api/events", json={"name": "Solo giudici"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Canali separati",
+            "public_voting_enabled": True,
+            "judge_voting_enabled": True,
+        },
+    ).json()["id"]
+    for index in range(1, 3):
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": f"P{index}", "display_name": f"P{index}"},
+        )
+    client.post(
+        f"/api/competitions/{competition_id}/judge-criteria",
+        json={"name": "Tecnica"},
+    )
+    judge = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge", "display_name": "Judge", "access_code": "secret"},
+    ).json()
+    client.post(f"/api/competitions/{competition_id}/judges/{judge['id']}")
+    voter_id, token = _create_voter_account(client, event_id)
+
+    assert client.patch(f"/api/events/{event_id}", json={"status": "live"}).status_code == 200
+    opened = client.post(
+        f"/api/competitions/{competition_id}/voting-sessions",
+        json={"label": "Giudici", "channels": ["judge"]},
+    )
+    assert opened.status_code == 201
+    assert opened.json()["judge_voting_open"] is True
+    assert opened.json()["public_voting_open"] is False
+
+    status = client.get(
+        f"/api/competitions/{competition_id}/public-votes/status",
+        headers={"X-Voter-Account-Id": voter_id, "X-Voter-Access-Token": token},
+    )
+    assert status.status_code == 200
+    assert status.json()["voting_open"] is False
+
+
+def test_team_voter_accounts_cannot_vote_for_their_participant(client):
+    event_id = client.post("/api/events", json={"name": "Team Event"}).json()["id"]
+    competition = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Team Competition",
+            "public_vote_method": "single_choice",
+            "public_weight": 100,
+            "judge_weight": 0,
+            "judge_voting_enabled": False,
+        },
+    ).json()
+    competition_id = competition["id"]
+
+    voter_1 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team voter 1"},
+    ).json()["voter_account"]
+    voter_2 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team voter 2"},
+    ).json()["voter_account"]
+
+    team = client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={
+            "name": "team",
+            "display_name": "Team",
+            "order_index": 1,
+            "voter_account_ids": [voter_1["id"], voter_2["id"]],
+        },
+    ).json()
+    client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "other", "display_name": "Other", "order_index": 2},
+    )
+
+    client.patch(f"/api/events/{event_id}", json={"status": "live"})
+    client.post(f"/api/competitions/{competition_id}/voting-sessions/open")
+
+    for voter in (voter_1, voter_2):
+        response = client.post(
+            f"/api/competitions/{competition_id}/public-votes",
+            headers={
+                "X-Voter-Account-Id": voter["id"],
+                "X-Voter-Access-Token": voter["access_token"],
+            },
+            json={"method": "single_choice", "participant_id": team["id"]},
+        )
+        assert response.status_code == 409
+def test_public_status_is_closed_when_only_judge_channel_is_open(client: TestClient) -> None:
+    event_id = client.post("/api/events", json={"name": "Solo giudici"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Canali separati",
+            "public_voting_enabled": True,
+            "judge_voting_enabled": True,
+        },
+    ).json()["id"]
+    for index in range(1, 3):
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": f"P{index}", "display_name": f"P{index}"},
+        )
+    client.post(
+        f"/api/competitions/{competition_id}/judge-criteria",
+        json={"name": "Tecnica"},
+    )
+    judge = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge", "display_name": "Judge", "access_code": "secret"},
+    ).json()
+    client.post(f"/api/competitions/{competition_id}/judges/{judge['id']}")
+    voter_id, token = _create_voter_account(client, event_id)
+
+    assert client.patch(f"/api/events/{event_id}", json={"status": "live"}).status_code == 200
+    opened = client.post(
+        f"/api/competitions/{competition_id}/voting-sessions",
+        json={"label": "Giudici", "channels": ["judge"]},
+    )
+    assert opened.status_code == 201
+    assert opened.json()["judge_voting_open"] is True
+    assert opened.json()["public_voting_open"] is False
+
+    status = client.get(
+        f"/api/competitions/{competition_id}/public-votes/status",
+        headers={"X-Voter-Account-Id": voter_id, "X-Voter-Access-Token": token},
+    )
+    assert status.status_code == 200
+    assert status.json()["voting_open"] is False
+
+
+def test_team_voter_accounts_cannot_vote_for_their_participant(client):
+    event_id = client.post("/api/events", json={"name": "Team Event"}).json()["id"]
+    competition = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Team Competition",
+            "public_vote_method": "single_choice",
+            "public_weight": 100,
+            "judge_weight": 0,
+            "judge_voting_enabled": False,
+        },
+    ).json()
+    competition_id = competition["id"]
+
+    voter_1 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team voter 1"},
+    ).json()["voter_account"]
+    voter_2 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team voter 2"},
+    ).json()["voter_account"]
+
+    team = client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={
+            "name": "team",
+            "display_name": "Team",
+            "order_index": 1,
+            "voter_account_ids": [voter_1["id"], voter_2["id"]],
+        },
+    ).json()
+    client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "other", "display_name": "Other", "order_index": 2},
+    )
+
+    client.patch(f"/api/events/{event_id}", json={"status": "live"})
+    client.post(f"/api/competitions/{competition_id}/voting-sessions/open")
+
+    for voter in (voter_1, voter_2):
+        response = client.post(
+            f"/api/competitions/{competition_id}/public-votes",
+            headers={
+                "X-Voter-Account-Id": voter["id"],
+                "X-Voter-Access-Token": voter["access_token"],
+            },
+            json={"method": "single_choice", "participant_id": team["id"]},
+        )
+        assert response.status_code == 409
+def test_public_status_is_closed_when_only_judge_channel_is_open(client: TestClient) -> None:
+    event_id = client.post("/api/events", json={"name": "Solo giudici"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Canali separati",
+            "public_voting_enabled": True,
+            "judge_voting_enabled": True,
+        },
+    ).json()["id"]
+    for index in range(1, 3):
+        client.post(
+            f"/api/competitions/{competition_id}/participants",
+            json={"name": f"P{index}", "display_name": f"P{index}"},
+        )
+    client.post(
+        f"/api/competitions/{competition_id}/judge-criteria",
+        json={"name": "Tecnica"},
+    )
+    judge = client.post(
+        f"/api/events/{event_id}/judges",
+        json={"name": "judge", "display_name": "Judge", "access_code": "secret"},
+    ).json()
+    client.post(f"/api/competitions/{competition_id}/judges/{judge['id']}")
+    voter_id, token = _create_voter_account(client, event_id)
+
+    assert client.patch(f"/api/events/{event_id}", json={"status": "live"}).status_code == 200
+    opened = client.post(
+        f"/api/competitions/{competition_id}/voting-sessions",
+        json={"label": "Giudici", "channels": ["judge"]},
+    )
+    assert opened.status_code == 201
+    assert opened.json()["judge_voting_open"] is True
+    assert opened.json()["public_voting_open"] is False
+
+    status = client.get(
+        f"/api/competitions/{competition_id}/public-votes/status",
+        headers={"X-Voter-Account-Id": voter_id, "X-Voter-Access-Token": token},
+    )
+    assert status.status_code == 200
+    assert status.json()["voting_open"] is False
+
+
+def test_team_voter_accounts_cannot_vote_for_their_participant(client):
+    event_id = client.post("/api/events", json={"name": "Team Event"}).json()["id"]
+    competition = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Team Competition",
+            "public_vote_method": "single_choice",
+            "public_weight": 100,
+            "judge_weight": 0,
+            "judge_voting_enabled": False,
+        },
+    ).json()
+    competition_id = competition["id"]
+
+    voter_1 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team voter 1"},
+    ).json()["voter_account"]
+    voter_2 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team voter 2"},
+    ).json()["voter_account"]
+
+    team = client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={
+            "name": "team",
+            "display_name": "Team",
+            "order_index": 1,
+            "voter_account_ids": [voter_1["id"], voter_2["id"]],
+        },
+    ).json()
+    client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "other", "display_name": "Other", "order_index": 2},
+    )
+
+    client.patch(f"/api/events/{event_id}", json={"status": "live"})
+    client.post(f"/api/competitions/{competition_id}/voting-sessions/open")
+
+    for voter in (voter_1, voter_2):
+        response = client.post(
+            f"/api/competitions/{competition_id}/public-votes",
+            headers={
+                "X-Voter-Account-Id": voter["id"],
+                "X-Voter-Access-Token": voter["access_token"],
+            },
+            json={"method": "single_choice", "participant_id": team["id"]},
+        )
+        assert response.status_code == 409

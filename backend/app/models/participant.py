@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -12,6 +12,22 @@ if TYPE_CHECKING:
     from app.models.competition import Competition
     from app.models.vote import JudgeVote, PublicVote
     from app.models.voter_account import VoterAccount
+
+
+participant_voter_accounts = Table(
+    "participant_voter_accounts",
+    Base.metadata,
+    Column(
+        "participant_id",
+        ForeignKey("participants.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "voter_account_id",
+        ForeignKey("voter_accounts.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
 
 
 class Participant(IdMixin, TimestampMixin, Base):
@@ -38,6 +54,17 @@ class Participant(IdMixin, TimestampMixin, Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     competition: Mapped[Competition] = relationship(back_populates="participants")
-    voter_account: Mapped[VoterAccount | None] = relationship(back_populates="participants")
+    voter_account: Mapped[VoterAccount | None] = relationship()
+    voter_accounts: Mapped[list[VoterAccount]] = relationship(
+        secondary=participant_voter_accounts,
+        back_populates="participants",
+    )
+
+    @property
+    def voter_account_ids(self) -> list[str]:
+        ids = [account.id for account in self.voter_accounts]
+        if not ids and self.voter_account_id is not None:
+            return [self.voter_account_id]
+        return ids
     public_votes: Mapped[list[PublicVote]] = relationship(back_populates="participant")
     judge_votes: Mapped[list[JudgeVote]] = relationship(back_populates="participant")

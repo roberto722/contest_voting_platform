@@ -11,7 +11,7 @@ class ResultEntryRead(BaseModel):
     final_score: float
     public_score: float
     judge_score: float
-    public_votes: int
+    public_votes: float
     judge_votes_count: int
     details: dict[str, Any]
 

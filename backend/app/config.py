@@ -15,7 +15,7 @@ class Settings(BaseSettings):
         validation_alias="BACKEND_CORS_ORIGINS",
     )
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 @lru_cache

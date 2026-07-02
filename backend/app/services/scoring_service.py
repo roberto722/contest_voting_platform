@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -18,6 +18,7 @@ from app.models import (
     ResultSnapshot,
     VotingSession,
 )
+from app.models.participant import participant_voter_accounts
 from app.services.admin_service import get_competition
 
 PUBLIC_SCORE_FORMULA = "100 * sqrt(votes / max_votes)"
@@ -25,8 +26,8 @@ PUBLIC_SCORE_FORMULA = "100 * sqrt(votes / max_votes)"
 
 @dataclass(frozen=True)
 class PublicScore:
-    votes: int
-    max_votes: int
+    votes: float
+    max_votes: float
     score: float
 
 
@@ -149,7 +150,7 @@ def calculate_public_scores(
     }
 
 
-def calculate_public_score(votes: int, max_votes: int) -> float:
+def calculate_public_score(votes: float, max_votes: float) -> float:
     if max_votes <= 0 or votes <= 0:
         return 0.0
     return round_score(100 * math.sqrt(votes / max_votes))
@@ -291,17 +292,58 @@ def _public_vote_counts(
     db: Session,
     competition_id: str,
     voting_session_id: str,
-) -> dict[str, int]:
-    counts: defaultdict[str, int] = defaultdict(int)
-    participant_ids = db.scalars(
-        select(PublicVote.participant_id).where(
+) -> dict[str, float]:
+    counts: defaultdict[str, float] = defaultdict(float)
+    votes = db.execute(
+        select(PublicVote.participant_id, PublicVote.voter_account_id).where(
             PublicVote.competition_id == competition_id,
             PublicVote.voting_session_id == voting_session_id,
         )
     )
-    for participant_id in participant_ids:
-        counts[participant_id] += 1
+    vote_rows = list(votes)
+    ballot_sizes: defaultdict[str, int] = defaultdict(int)
+    for _, voter_account_id in vote_rows:
+        if voter_account_id:
+            ballot_sizes[voter_account_id] += 1
+    weights = _voter_account_weights(
+        db,
+        competition_id,
+        {voter_account_id for _, voter_account_id in vote_rows if voter_account_id},
+    )
+    for participant_id, voter_account_id in vote_rows:
+        if voter_account_id:
+            counts[participant_id] += weights.get(voter_account_id, 1.0) / ballot_sizes[voter_account_id]
+        else:
+            counts[participant_id] += 1.0
     return dict(counts)
+
+
+def _voter_account_weights(
+    db: Session,
+    competition_id: str,
+    voter_account_ids: set[str],
+) -> dict[str, float]:
+    if not voter_account_ids:
+        return {}
+
+    team_sizes = (
+        select(
+            participant_voter_accounts.c.participant_id,
+            func.count(participant_voter_accounts.c.voter_account_id).label("team_size"),
+        )
+        .group_by(participant_voter_accounts.c.participant_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(participant_voter_accounts.c.voter_account_id, team_sizes.c.team_size)
+        .join(team_sizes, team_sizes.c.participant_id == participant_voter_accounts.c.participant_id)
+        .join(Participant, Participant.id == participant_voter_accounts.c.participant_id)
+        .where(
+            Participant.competition_id == competition_id,
+            participant_voter_accounts.c.voter_account_id.in_(voter_account_ids),
+        )
+    )
+    return {voter_account_id: 1 / team_size for voter_account_id, team_size in rows if team_size}
 
 
 def _build_judge_score(

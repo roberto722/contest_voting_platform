@@ -104,6 +104,7 @@ class ParticipantCreate(BaseModel):
     performance_title: str | None = None
     order_index: int = 0
     active: bool = True
+    voter_account_ids: list[str] = Field(default_factory=list)
 
 
 class ParticipantUpdate(BaseModel):
@@ -114,6 +115,7 @@ class ParticipantUpdate(BaseModel):
     performance_title: str | None = None
     order_index: int | None = None
     active: bool | None = None
+    voter_account_ids: list[str] | None = None
 
 
 class ParticipantRead(BaseModel):
@@ -129,6 +131,7 @@ class ParticipantRead(BaseModel):
     order_index: int
     active: bool
     voter_account_id: str | None = None
+    voter_account_ids: list[str] = Field(default_factory=list)
 
 
 class CriterionCreate(BaseModel):
@@ -207,10 +210,12 @@ class CompetitionJudgeRead(BaseModel):
 class VotingSessionCreate(BaseModel):
     label: str | None = Field(default=None, max_length=255)
     opened_by_admin_id: str | None = Field(default=None, max_length=36)
+    channels: list[str] | None = None
 
 
 class VotingSessionClose(BaseModel):
     closed_by_admin_id: str | None = Field(default=None, max_length=36)
+    channels: list[str] | None = None
 
 
 class VotingSessionRead(BaseModel):
@@ -220,6 +225,8 @@ class VotingSessionRead(BaseModel):
     competition_id: str
     label: str | None
     status: VotingSessionStatus
+    public_voting_open: bool
+    judge_voting_open: bool
     opened_at: datetime | None
     closed_at: datetime | None
     opened_by_admin_id: str | None

@@ -25,7 +25,7 @@ Servizi:
 - Health check: http://localhost:8000/health
 - PostgreSQL: localhost:5432
 
-Un link diretto usa `http://localhost:5173/vote?competitionId=<id>`; senza ID la pagina
+Un link diretto usa `http://localhost:5173/vote?eventId=<id>`; senza ID la pagina
 mostra il form di accesso.
 
 ## Sviluppo backend
@@ -81,94 +81,55 @@ Le migrazioni applicative verranno aggiunte dalla milestone database e modelli.
 - `docs/ROADMAP.md`: milestone e criteri di completamento.
 - `docs/superpowers/plans/`: piani di implementazione.
 
-## Deploy live con Cloudflare Tunnel
+## Deploy VPS con Caddy
 
-Cloudflare Tunnel serve solo per rendere l'app accessibile da internet senza aprire
-porte sul router/server. Cloudflared e opzionale: l'app funziona anche senza
-Cloudflare in locale o LAN, e webapp, backend e database non dipendono dal tunnel.
-
-Avvio normale, senza Cloudflare:
-
-```bash
-docker compose up -d
-```
-
-Avvio con Cloudflare:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml up -d
-```
-
-Verifica configurazione:
-
-```bash
-docker compose config
-```
-
-Log del tunnel:
-
-```bash
-docker compose logs -f cloudflared
-```
-
-Stop del solo tunnel:
-
-```bash
-docker compose stop cloudflared
-```
-
-Se il tunnel cade, i voti continuano a essere salvati finche frontend, backend e
-database sono attivi. Se Cloudflare o internet non funzionano, usare il fallback
-locale/LAN.
-
-## Configurazione Cloudflare
-
-1. Creare o usare un account Cloudflare.
-2. Avere un dominio gestito da Cloudflare.
-3. Aprire Cloudflare Dashboard / Zero Trust.
-4. Andare in Tunnels / Cloudflare Tunnels.
-5. Creare un nuovo tunnel.
-6. Scegliere `cloudflared` come connector.
-7. Copiare il token generato da Cloudflare.
-8. Inserire il token nel file `.env` locale, senza committarlo:
-
-```env
-CLOUDFLARE_TUNNEL_TOKEN=...
-```
-
-9. Configurare un Public Hostname / Published Application.
-
-Per questo progetto il servizio web Docker e il frontend:
+Il traffico arriva direttamente alla VPS:
 
 ```text
-Hostname pubblico:
-vota.example.com
-
-Service interno:
-http://frontend:5173
+DNS A record -> VPS porte 80/443 -> Caddy -> frontend/backend
 ```
 
-Non usare `localhost` nel pannello Cloudflare quando il tunnel gira in Docker.
-Usare il nome del servizio Docker interno, per esempio `http://frontend:5173`.
-Non puntare Cloudflare al database.
+Prerequisiti VPS:
 
-Se il frontend pubblico deve chiamare il backend da internet, configurare anche una
-URL pubblica per il backend, per esempio `https://api-vota.example.com`, verso:
+- Docker e Docker Compose installati.
+- Record DNS `qsr.it.eu.org` e `api.qsr.it.eu.org` puntati all'IP pubblico della VPS.
+- Porte `80` e `443` aperte sul firewall della VPS.
 
-```text
-http://backend:8000
-```
-
-Poi impostare nel `.env` locale:
+Preparare `.env` sul server:
 
 ```env
-VITE_API_BASE_URL=https://api-vota.example.com
-BACKEND_CORS_ORIGINS=https://vota.example.com
+POSTGRES_DB=contest_voting
+POSTGRES_USER=contest
+POSTGRES_PASSWORD=usa_una_password_forte
+DATABASE_URL=postgresql+psycopg://contest:usa_una_password_forte@postgres:5432/contest_voting
+FRONTEND_DOMAIN=qsr.it.eu.org
+BACKEND_DOMAIN=api.qsr.it.eu.org
+VITE_API_BASE_URL=https://api.qsr.it.eu.org
+BACKEND_CORS_ORIGINS=https://qsr.it.eu.org
 ```
 
+Avvio VPS:
+
+```bash
+docker compose -f docker-compose.vps.yml up -d --build
+```
+
+Log:
+
+```bash
+docker compose -f docker-compose.vps.yml logs -f caddy backend frontend
+```
+
+Stop:
+
+```bash
+docker compose -f docker-compose.vps.yml down
+```
+
+Caddy richiede e rinnova automaticamente i certificati HTTPS Let's Encrypt per i due domini.
 ## Fallback locale/LAN
 
-1. Se Cloudflare non funziona, verificare che app e database siano attivi:
+1. Verificare che app e database siano attivi:
 
 ```bash
 docker compose ps
@@ -204,14 +165,11 @@ da `5173`. Il backend resta disponibile dal server su `http://localhost:8000`.
 
 ## Checklist pre-evento
 
-- `docker compose config` non da errori.
-- `docker compose up -d` avvia frontend, backend e database.
-- L'app funziona da localhost.
-- L'app funziona da IP locale LAN.
-- Il file `.env` contiene `CLOUDFLARE_TUNNEL_TOKEN` solo in locale.
-- Il repository non contiene token reali.
-- Cloudflared parte correttamente.
-- Il dominio pubblico apre l'app.
-- Fermando cloudflared, l'app continua a funzionare da localhost/LAN.
-- Il database non espone porte pubbliche inutili.
-- Il servizio cloudflared punta al servizio web, non al database.
+- I record DNS `qsr.it.eu.org` e `api.qsr.it.eu.org` puntano alla VPS.
+- Le porte `80` e `443` sono aperte sul firewall della VPS.
+- `.env` contiene password Postgres forte e URL HTTPS corretti.
+- `docker compose -f docker-compose.vps.yml ps` mostra `caddy`, `frontend`, `backend` e `postgres` attivi.
+- `https://qsr.it.eu.org` apre il frontend.
+- `https://api.qsr.it.eu.org/health` risponde dal backend.
+- I log Caddy non mostrano errori di emissione certificati.
+- I codici voto/giudici usati per test non sono committati nel repository.

@@ -97,3 +97,141 @@ def test_link_and_unlink_participant(client: TestClient) -> None:
         f"/api/voter-accounts/{va_id}/unlink-participant/{p_id}"
     )
     assert unlink_resp.status_code == 204
+
+
+def test_multiple_voter_accounts_can_link_same_participant(client: TestClient) -> None:
+    event_id, comp_id, p_id = _setup_event_and_participant(client)
+    voter_ids = [
+        client.post(
+            f"/api/events/{event_id}/voter-accounts",
+            json={"display_name": name},
+        ).json()["voter_account"]["id"]
+        for name in ("V1", "V2")
+    ]
+
+    for voter_id in voter_ids:
+        response = client.post(
+            f"/api/voter-accounts/{voter_id}/link-participant",
+            json={"participant_id": p_id},
+        )
+        assert response.status_code == 200
+
+    participants = client.get(f"/api/competitions/{comp_id}/participants").json()
+    participant = next(p for p in participants if p["id"] == p_id)
+    assert set(participant["voter_account_ids"]) == set(voter_ids)
+
+
+def test_voter_account_cannot_link_two_participants_in_same_competition(client: TestClient) -> None:
+    event_id, comp_id, p1_id = _setup_event_and_participant(client)
+    p2_id = client.post(
+        f"/api/competitions/{comp_id}/participants",
+        json={"name": "marco", "display_name": "Marco"},
+    ).json()["id"]
+    voter_id = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "V"},
+    ).json()["voter_account"]["id"]
+
+    first = client.post(
+        f"/api/voter-accounts/{voter_id}/link-participant",
+        json={"participant_id": p1_id},
+    )
+    second = client.post(
+        f"/api/voter-accounts/{voter_id}/link-participant",
+        json={"participant_id": p2_id},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+
+
+def test_multiple_voter_accounts_can_link_same_participant(client: TestClient) -> None:
+    event_id, comp_id, p_id = _setup_event_and_participant(client)
+    voter_ids = [
+        client.post(
+            f"/api/events/{event_id}/voter-accounts",
+            json={"display_name": name},
+        ).json()["voter_account"]["id"]
+        for name in ("V1", "V2")
+    ]
+
+    for voter_id in voter_ids:
+        response = client.post(
+            f"/api/voter-accounts/{voter_id}/link-participant",
+            json={"participant_id": p_id},
+        )
+        assert response.status_code == 200
+
+    participants = client.get(f"/api/competitions/{comp_id}/participants").json()
+    participant = next(p for p in participants if p["id"] == p_id)
+    assert set(participant["voter_account_ids"]) == set(voter_ids)
+
+
+def test_voter_account_cannot_link_two_participants_in_same_competition(client: TestClient) -> None:
+    event_id, comp_id, p1_id = _setup_event_and_participant(client)
+    p2_id = client.post(
+        f"/api/competitions/{comp_id}/participants",
+        json={"name": "marco", "display_name": "Marco"},
+    ).json()["id"]
+    voter_id = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "V"},
+    ).json()["voter_account"]["id"]
+
+    first = client.post(
+        f"/api/voter-accounts/{voter_id}/link-participant",
+        json={"participant_id": p1_id},
+    )
+    second = client.post(
+        f"/api/voter-accounts/{voter_id}/link-participant",
+        json={"participant_id": p2_id},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+
+
+def test_multiple_voter_accounts_can_link_same_participant(client: TestClient) -> None:
+    event_id, comp_id, p_id = _setup_event_and_participant(client)
+    voter_ids = [
+        client.post(
+            f"/api/events/{event_id}/voter-accounts",
+            json={"display_name": name},
+        ).json()["voter_account"]["id"]
+        for name in ("V1", "V2")
+    ]
+
+    for voter_id in voter_ids:
+        response = client.post(
+            f"/api/voter-accounts/{voter_id}/link-participant",
+            json={"participant_id": p_id},
+        )
+        assert response.status_code == 200
+
+    participants = client.get(f"/api/competitions/{comp_id}/participants").json()
+    participant = next(p for p in participants if p["id"] == p_id)
+    assert set(participant["voter_account_ids"]) == set(voter_ids)
+
+
+def test_voter_account_cannot_link_two_participants_in_same_competition(client: TestClient) -> None:
+    event_id, comp_id, p1_id = _setup_event_and_participant(client)
+    p2_id = client.post(
+        f"/api/competitions/{comp_id}/participants",
+        json={"name": "marco", "display_name": "Marco"},
+    ).json()["id"]
+    voter_id = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "V"},
+    ).json()["voter_account"]["id"]
+
+    first = client.post(
+        f"/api/voter-accounts/{voter_id}/link-participant",
+        json={"participant_id": p1_id},
+    )
+    second = client.post(
+        f"/api/voter-accounts/{voter_id}/link-participant",
+        json={"participant_id": p2_id},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409

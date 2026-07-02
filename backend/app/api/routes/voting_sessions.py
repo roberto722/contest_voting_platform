@@ -27,6 +27,7 @@ async def open_voting_session(
         competition_id,
         label=payload.label,
         opened_by_admin_id=payload.opened_by_admin_id,
+        channels=payload.channels,
     )
     screen_state = screen_service.get_screen_state_for_competition(db, competition_id)
     if screen_state is not None:
@@ -64,6 +65,7 @@ async def close_voting_session(
         db,
         competition_id,
         closed_by_admin_id=payload.closed_by_admin_id,
+        channels=payload.channels,
     )
     screen_state = screen_service.get_screen_state_for_competition(db, competition_id)
     if screen_state is not None:
