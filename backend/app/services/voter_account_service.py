@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Event, Participant, VoterAccount
@@ -96,7 +96,25 @@ def link_participant(
             "participant does not belong to the voter account's event",
             status_code=409,
         )
-    participant.voter_account_id = va.id
+    existing_participant = db.scalars(
+        select(Participant).where(
+            or_(
+                Participant.voter_account_id == va.id,
+                Participant.voter_accounts.any(VoterAccount.id == va.id),
+            ),
+            Participant.competition_id == participant.competition_id,
+            Participant.id != participant.id,
+        )
+    ).first()
+    if existing_participant is not None:
+        raise AdminStateError(
+            "voter account is already linked to a participant in this competition",
+            status_code=409,
+        )
+    if va not in participant.voter_accounts:
+        participant.voter_accounts.append(va)
+    if participant.voter_account_id is None:
+        participant.voter_account_id = va.id
     db.add(participant)
     db.commit()
     db.refresh(participant)
@@ -112,12 +130,17 @@ def unlink_participant(
     event = get_required(db, Event, va.event_id, "event")
     _ensure_event_draft(event)
     participant = get_required(db, Participant, participant_id, "participant")
-    if participant.voter_account_id != va.id:
+    if va not in participant.voter_accounts and participant.voter_account_id != va.id:
         raise AdminStateError(
             "participant is not linked to this voter account",
             status_code=409,
         )
-    participant.voter_account_id = None
+    if va in participant.voter_accounts:
+        participant.voter_accounts.remove(va)
+    if participant.voter_account_id == va.id:
+        participant.voter_account_id = (
+            participant.voter_accounts[0].id if participant.voter_accounts else None
+        )
     db.add(participant)
     db.commit()
 

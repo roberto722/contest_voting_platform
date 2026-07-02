@@ -12,7 +12,7 @@ from app.schemas.public_vote import (
     SelfExclusionRead,
     VoterVotingStatusRead,
 )
-from app.services import access_service, public_vote_service
+from app.services import access_service, public_vote_service, voting_service
 from app.services import audit_service
 from app.services import screen_service
 from app.websocket.screen import screen_manager
@@ -129,7 +129,9 @@ def get_public_voting_status(
         access_token=x_voter_access_token,
     )
     competition = public_vote_service.get_competition(db, competition_id)
+    active_session = voting_service.get_open_voting_session(db, competition_id)
     return VoterVotingStatusRead(
+        voting_open=active_session is not None and active_session.public_voting_open,
         has_voted=has_voted,
         allow_vote_update=competition.allow_vote_update,
     )

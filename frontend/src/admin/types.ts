@@ -50,6 +50,7 @@ export type ParticipantRead = {
   order_index: number;
   active: boolean;
   voter_account_id: string | null;
+  voter_account_ids: string[];
 };
 
 export type CriterionRead = {
@@ -83,6 +84,8 @@ export type VotingSessionRead = {
   competition_id: string;
   label: string | null;
   status: VotingSessionStatus;
+  public_voting_open: boolean;
+  judge_voting_open: boolean;
   opened_at: string | null;
   closed_at: string | null;
   opened_by_admin_id: string | null;
