@@ -58,9 +58,8 @@ export function isPublicVotePath(pathname: string): boolean {
   return pathname === "/vote" || pathname === "/vote/";
 }
 
-// Kept for backward compat (used by App.tsx screen area)
-export function publicVoteHref(competitionId: string): string {
-  return `/vote?competitionId=${encodeURIComponent(competitionId)}`;
+export function publicVoteHref(eventId: string): string {
+  return `/vote?eventId=${encodeURIComponent(eventId)}`;
 }
 
 export function getVotingState(sessions: Array<{ status: string }>): VotingState {

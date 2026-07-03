@@ -1,6 +1,7 @@
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { participantBackdrop, publicVoteHref } from "./public-vote/publicVote";
 import { countdownResetKey } from "./screen/countdown";
+import { AutoFitText } from "./screen/AutoFitText";
 import { podiumAssets, podiumDisplayOrder, podiumPercent } from "./screen/podium";
 import { GoldDustCanvas } from "./screen/GoldDustCanvas";
 import JudgePage from "./judge/JudgePage";
@@ -748,8 +749,8 @@ export default function App() {
           title: textValue(data, "title"),
           public_vote_url:
             textValue(data, "public_vote_url") ||
-            (selectedCompetitionId
-              ? absoluteAppUrl(publicVoteHref(selectedCompetitionId))
+            (selectedEventId
+              ? absoluteAppUrl(publicVoteHref(selectedEventId))
               : ""),
           countdown_seconds: numberValue(data, "countdown_seconds", 90),
           reveal_upto: numberValue(data, "reveal_upto", 0),
@@ -904,8 +905,8 @@ export default function App() {
                           type="button"
                           style={{ padding: "6px 12px", fontSize: "0.85rem" }}
                           onClick={() => {
-                            const voteUrl = selectedCompetitionId
-                              ? absoluteAppUrl(publicVoteHref(selectedCompetitionId))
+                            const voteUrl = selectedEventId
+                              ? absoluteAppUrl(publicVoteHref(selectedEventId))
                               : "";
                             if (!voteUrl) return;
                             void navigator.clipboard.writeText(voteUrl);
@@ -1106,7 +1107,7 @@ export default function App() {
                     placeholder="URL voto pubblico"
                     defaultValue={
                       String(state.screenState?.payload_json.public_vote_url ?? "") ||
-                      `${window.location.origin}${publicVoteHref(selectedCompetitionId)}`
+                      (selectedEventId ? absoluteAppUrl(publicVoteHref(selectedEventId)) : "")
                     }
                   />
                   <input
@@ -1828,9 +1829,11 @@ function ScreenArea({ setMessage }: { setMessage: (message: string) => void }) {
                           <div className="podium-card-shade" />
                           <img className="podium-panel-asset" src={assets.panel} alt="" />
                           <div className="podium-card-content">
-                            <strong className="podium-name" title={result.display_name}>
-                              {result.display_name}
-                            </strong>
+                            <AutoFitText
+                              text={result.display_name}
+                              className="podium-name"
+                              title={result.display_name}
+                            />
                             <span className="podium-score-capsule">
                               {podiumPercent(result.final_score, totalFinalScore)}%
                             </span>
