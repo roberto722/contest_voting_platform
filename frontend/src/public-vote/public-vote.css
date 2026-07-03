@@ -42,7 +42,6 @@ button:disabled {
   width: 100%;
   max-width: 560px;
   min-width: 0;
-  min-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(214, 157, 67, 0.58);
