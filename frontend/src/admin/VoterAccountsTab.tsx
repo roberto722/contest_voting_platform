@@ -19,6 +19,14 @@ type Props = {
   onCredential: (notice: VoterCredentialNotice) => void;
 };
 
+function participantVoterAccountIds(participant: ParticipantRead): string[] {
+  return participant.voter_account_ids.length
+    ? participant.voter_account_ids
+    : participant.voter_account_id
+      ? [participant.voter_account_id]
+      : [];
+}
+
 export function VoterAccountsTab({
   eventId,
   competitions,
@@ -152,7 +160,8 @@ export function VoterAccountsTab({
           <p className="form-hint">Nessun account votante creato.</p>
         )}
         {voterAccounts.map((va) => {
-          const linked = participants.filter((p) => p.voter_account_id === va.id);
+          const linked = participants.filter((p) => participantVoterAccountIds(p).includes(va.id));
+          const linkedCompetitionIds = new Set(linked.map((p) => p.competition_id));
           return (
             <div key={va.id} className="voter-row">
               <div className="voter-row-header">
@@ -230,7 +239,8 @@ export function VoterAccountsTab({
                       const compParticipants = participants.filter(
                         (p) =>
                           p.competition_id === comp.id &&
-                          !p.voter_account_id
+                          !linkedCompetitionIds.has(comp.id) &&
+                          !participantVoterAccountIds(p).includes(va.id)
                       );
                       if (compParticipants.length === 0) return null;
                       return (

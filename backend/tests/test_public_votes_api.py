@@ -3,6 +3,7 @@ from collections.abc import Generator
 import pytest
 from app.db import Base, get_db
 from app.main import app
+from app.models.participant import Participant
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -620,6 +621,62 @@ def test_team_voter_accounts_cannot_vote_for_their_participant(client):
             json={"method": "single_choice", "participant_id": team["id"]},
         )
         assert response.status_code == 409
+
+
+def test_team_voter_account_link_blocks_self_vote_without_legacy_owner(
+    db_session: Session, client: TestClient
+):
+    event_id = client.post("/api/events", json={"name": "Team Event"}).json()["id"]
+    competition_id = client.post(
+        f"/api/events/{event_id}/competitions",
+        json={
+            "name": "Team Competition",
+            "public_voting_enabled": True,
+            "judge_voting_enabled": False,
+            "public_vote_method": "single_choice",
+            "public_weight": 100,
+            "judge_weight": 0,
+        },
+    ).json()["id"]
+    voter_1 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team Member 1"},
+    ).json()["voter_account"]
+    voter_2 = client.post(
+        f"/api/events/{event_id}/voter-accounts",
+        json={"display_name": "Team Member 2"},
+    ).json()["voter_account"]
+    participant_id = client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={
+            "name": "Team",
+            "display_name": "Team",
+            "voter_account_ids": [voter_1["id"], voter_2["id"]],
+        },
+    ).json()["id"]
+    client.post(
+        f"/api/competitions/{competition_id}/participants",
+        json={"name": "Other", "display_name": "Other"},
+    )
+
+    participant = db_session.get(Participant, participant_id)
+    participant.voter_account_id = None
+    db_session.commit()
+
+    assert client.patch(f"/api/events/{event_id}", json={"status": "live"}).status_code == 200
+    _open_voting(client, competition_id)
+
+    response = client.post(
+        f"/api/competitions/{competition_id}/public-votes",
+        headers={
+            "X-Voter-Account-Id": voter_2["id"],
+            "X-Voter-Access-Token": voter_2["access_token"],
+        },
+        json={"method": "single_choice", "participant_id": participant_id},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "a participant cannot vote for themselves"
 def test_public_status_is_closed_when_only_judge_channel_is_open(client: TestClient) -> None:
     event_id = client.post("/api/events", json={"name": "Solo giudici"}).json()["id"]
     competition_id = client.post(

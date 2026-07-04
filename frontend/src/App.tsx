@@ -586,6 +586,7 @@ export default function App() {
         name: slugValue(textValue(data, "display_name")),
         display_name: textValue(data, "display_name"),
         order_index: numberValue(data, "order_index", state.participants.length + 1),
+        voter_account_ids: data.getAll("voter_account_ids").map(String),
       }),
     });
     form.reset();

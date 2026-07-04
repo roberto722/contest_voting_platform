@@ -1,6 +1,6 @@
 from collections import Counter
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -158,7 +158,10 @@ def _get_self_participant_id(
 ) -> str | None:
     participant = db.scalar(
         select(Participant).where(
-            Participant.voter_account_id == voter_account_id,
+            or_(
+                Participant.voter_account_id == voter_account_id,
+                Participant.voter_accounts.any(VoterAccount.id == voter_account_id),
+            ),
             Participant.competition_id == competition_id,
         )
     )

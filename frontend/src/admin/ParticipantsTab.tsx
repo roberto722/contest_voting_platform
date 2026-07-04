@@ -26,6 +26,13 @@ export function ParticipantsTab({
       <Form submitLabel="Aggiungi" onSubmit={onAdd} disabled={configurationLocked}>
         <input name="display_name" placeholder="Nome pubblico" required />
         <input name="order_index" type="number" placeholder="Ordine" defaultValue={participants.length} />
+        <select name="voter_account_ids" multiple disabled={configurationLocked || voterAccounts.length === 0}>
+          {voterAccounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.display_name}
+            </option>
+          ))}
+        </select>
       </Form>
       <List>
         {participants.length === 0 && (
